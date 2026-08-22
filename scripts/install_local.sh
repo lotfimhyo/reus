@@ -32,7 +32,7 @@ fi
 ".venv/bin/python" -m pip install -r requirements-dev.txt
 
 if [ ! -f .env ]; then
-  cp .env.example .env
+  cp templates/local-settings-template.txt .env
 fi
 ".venv/bin/python" scripts/generate_local_env.py --enable-local-chat
 chmod 600 .env 2>/dev/null || true

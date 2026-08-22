@@ -24,7 +24,7 @@ def test_doctor_reports_default_executor_as_non_chat_ready(tmp_path: Path):
 
     issues = doctor.check(tmp_path, strict=False)
 
-    assert any("لا يدعم /chat" in issue for issue in issues)
+    assert any("does not support /chat" in issue for issue in issues)
 
 
 def test_doctor_accepts_local_model_router_configuration_without_external_probe(tmp_path: Path):

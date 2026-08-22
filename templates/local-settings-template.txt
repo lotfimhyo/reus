@@ -1,0 +1,7 @@
+# Project: Reus | Founder: Lotfi Mahiddine | Organization: Reulink
+# This template contains no credentials. The local installer creates a private
+# runtime configuration from it, then generates only missing local API secrets.
+#
+# Optional integrations such as Telegram, Supabase, Kimi-compatible APIs,
+# PostgreSQL, Redis, cloud providers, and cluster peering remain disabled until
+# an operator deliberately configures and reviews them.

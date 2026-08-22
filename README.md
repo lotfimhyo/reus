@@ -67,8 +67,8 @@ Run the local quality gate with:
 bash scripts/run_local_quality.sh
 ```
 
-The most recently recorded local gate result was **501 passing tests and five
-passing subtests**. It intentionally excludes only integration checks requiring
+The most recently recorded local gate result was **503 passing tests and five
+passing subtests. It intentionally excludes only integration checks requiring
 separately provisioned PostgreSQL, Redis, or Alembic services.
 
 ## Security and data boundaries

@@ -8,7 +8,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT="${1:-$ROOT/../Reus_release_lotfi_Mahiddine.zip}"
 OUTPUT="$(readlink -m "$OUTPUT")"
 if [[ "$OUTPUT" == "$ROOT"/* ]]; then
-  echo "ضع ملف ZIP خارج مجلد المشروع كي لا يدخل في الحزمة نفسها." >&2
+  echo "Place the ZIP archive outside the project directory so it cannot include itself." >&2
   exit 2
 fi
 mkdir -p "$(dirname "$OUTPUT")"
@@ -20,4 +20,4 @@ zip -qr "$OUTPUT" . \
      '*.jsonl' '*.pem' '*.key' '*.raw' 'component_identity.json' 'raft_state.json' \
      'raft_state.json.snapshot' 'pending_joins.json' 'peers.json' 'trust_bundle.pem' '*.log' \
      'coverage.xml' 'htmlcov/*' 'dist/*' 'build/*' '*.zip'
-echo "حزمة Reus النظيفة جاهزة: $OUTPUT"
+echo "Clean Reus source archive is ready: $OUTPUT"

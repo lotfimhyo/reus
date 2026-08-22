@@ -8,13 +8,13 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 if [ ! -x .venv/bin/pytest ]; then
-  echo "لا توجد بيئة اختبارات .venv؛ شغّل: bash scripts/reusctl.sh install" >&2
+  echo "No local test environment exists; run: bash scripts/reusctl.sh install" >&2
   exit 1
 fi
 
 export REUS_STORAGE_BACKEND=memory
 export REUS_EVENT_BUS_BACKEND=memory
-echo "بوابة الجودة المحلية: اختبارات PostgreSQL وRedis التكاملية مستثناة لأنها تتطلب خدمات حقيقية."
+echo "Local quality gate: PostgreSQL and Redis integration tests are excluded because they require real services."
 exec .venv/bin/pytest -q \
   --ignore=tests/test_alembic_migrations.py \
   --ignore=tests/test_postgres_repositories.py \

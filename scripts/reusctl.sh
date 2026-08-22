@@ -11,15 +11,15 @@ shift || true
 
 usage() {
   cat <<'EOF'
-استخدام Reus المحلي:
-  bash scripts/reusctl.sh install                 تهيئة .venv و.env محلي آمن
-  bash scripts/reusctl.sh doctor [--strict]       فحص غير معدّل للجاهزية
-  bash scripts/reusctl.sh start-core              فحص صارم ثم تشغيل API المحلية
-  bash scripts/reusctl.sh start-node <args...>    تشغيل عقدة Reus (مرّر --role و--data-dir)
-  bash scripts/reusctl.sh start-first-node         عقدة أولى محلية (text-node)
-  bash scripts/reusctl.sh join-node --seed-url URL عقدة تابعة محلية (cipher-node)
+Reus local usage:
+  bash scripts/reusctl.sh install                 create a safe local virtual environment and configuration
+  bash scripts/reusctl.sh doctor [--strict]       run a read-only readiness check
+  bash scripts/reusctl.sh start-core              run a strict check, then start the local API
+  bash scripts/reusctl.sh start-node <args...>    start a Reus node (pass --role and --data-dir)
+  bash scripts/reusctl.sh start-first-node        start a conservative local first node (text-node)
+  bash scripts/reusctl.sh join-node --seed-url URL start a local joining node (cipher-node)
 
-لا يشغّل هذا الأمر Telegram أو Kimi أو Supabase أو أي نشر سحابي تلقائياً.
+This command does not enable Telegram, Kimi, Supabase, or cloud deployment automatically.
 EOF
 }
 
@@ -33,7 +33,7 @@ case "$COMMAND" in
     ;;
   start-core)
     if [ ! -x .venv/bin/python ]; then
-      echo "لا توجد بيئة .venv؛ شغّل: bash scripts/reusctl.sh install" >&2
+      echo "No local virtual environment exists; run: bash scripts/reusctl.sh install" >&2
       exit 1
     fi
     .venv/bin/python scripts/reus_doctor.py --strict
@@ -41,7 +41,7 @@ case "$COMMAND" in
     ;;
   start-node)
     if [ ! -x .venv/bin/python ]; then
-      echo "لا توجد بيئة .venv؛ شغّل: bash scripts/reusctl.sh install" >&2
+      echo "No local virtual environment exists; run: bash scripts/reusctl.sh install" >&2
       exit 1
     fi
     .venv/bin/python scripts/reus_doctor.py
@@ -49,7 +49,7 @@ case "$COMMAND" in
     ;;
   start-first-node)
     if [ ! -x .venv/bin/python ]; then
-      echo "لا توجد بيئة .venv؛ شغّل: bash scripts/reusctl.sh install" >&2
+      echo "No local virtual environment exists; run: bash scripts/reusctl.sh install" >&2
       exit 1
     fi
     .venv/bin/python scripts/reus_doctor.py
@@ -64,11 +64,11 @@ case "$COMMAND" in
     ;;
   join-node)
     if [ ! -x .venv/bin/python ]; then
-      echo "لا توجد بيئة .venv؛ شغّل: bash scripts/reusctl.sh install" >&2
+      echo "No local virtual environment exists; run: bash scripts/reusctl.sh install" >&2
       exit 1
     fi
     if [[ " $* " != *" --seed-url "* ]]; then
-      echo "يتطلب join-node عنوان العقدة الأولى: --seed-url http://HOST:8080" >&2
+      echo "join-node requires the first node address: --seed-url http://HOST:8080" >&2
       exit 2
     fi
     .venv/bin/python scripts/reus_doctor.py
@@ -82,5 +82,5 @@ case "$COMMAND" in
       "$@"
     ;;
   help|-h|--help) usage ;;
-  *) echo "أمر غير معروف: $COMMAND" >&2; usage >&2; exit 2 ;;
+  *) echo "Unknown command: $COMMAND" >&2; usage >&2; exit 2 ;;
 esac

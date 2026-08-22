@@ -37,32 +37,32 @@ def is_placeholder(value: str) -> bool:
 def check(root: Path, *, strict: bool) -> list[str]:
     issues: list[str] = []
     if sys.version_info < (3, 11):
-        issues.append(f"يتطلب Reus Python 3.11+؛ المتاح هو {sys.version.split()[0]}.")
+        issues.append(f"Reus requires Python 3.11+; found {sys.version.split()[0]}.")
     if not (root / ".venv" / "bin" / "python").exists():
-        issues.append("لا توجد بيئة .venv؛ شغّل: bash scripts/reusctl.sh install")
+        issues.append("No local virtual environment exists; run: bash scripts/reusctl.sh install")
 
     env_path = root / ".env"
     if not env_path.exists():
-        issues.append("لا يوجد .env؛ شغّل أمر install لإنشاء إعداد محلي محافظ.")
+        issues.append("No local configuration exists; run install to create a conservative local setup.")
         return issues
     values = load_env(env_path)
     environment = values.get("REUS_ENVIRONMENT", "development").lower()
     for key in ("REUS_API_KEY", "REUS_USER_API_KEY"):
         if is_placeholder(values.get(key, "")):
-            issues.append(f"{key} ما زال فارغاً أو placeholder.")
+            issues.append(f"{key} is still empty or a placeholder.")
 
     if environment == "production" and values.get("REUS_STORAGE_BACKEND") == "postgres" and not values.get("REUS_ENCRYPTION_KEY"):
-        issues.append("إنتاج PostgreSQL يتطلب REUS_ENCRYPTION_KEY.")
+        issues.append("Production PostgreSQL requires REUS_ENCRYPTION_KEY.")
     if values.get("REUS_TELEGRAM_ENABLED", "false").lower() == "true":
         if is_placeholder(values.get("REUS_TELEGRAM_BOT_TOKEN", "")) or not values.get("REUS_TELEGRAM_ALLOWED_CHAT_IDS", "").strip():
-            issues.append("Telegram مفعّل من دون bot token صالح أو قائمة محادثات إدارية.")
+            issues.append("Telegram is enabled without a valid bot token or an administrative chat allowlist.")
 
     executor = values.get("REUS_TASK_EXECUTOR", "default")
     if executor == "default":
-        issues.append("REUS_TASK_EXECUTOR=default لا يدعم /chat؛ اختر ollama أو model_router.")
+        issues.append("REUS_TASK_EXECUTOR=default does not support /chat; choose ollama or model_router.")
     if executor == "ollama":
         if shutil.which("ollama") is None:
-            issues.append("مشغّل Ollama مطلوب للمحادثة المحلية لكنه غير موجود على PATH.")
+            issues.append("The Ollama executable is required for local chat but is not on PATH.")
         elif strict:
             base_url = values.get("REUS_OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
             model = values.get("REUS_OLLAMA_MODEL", "")
@@ -70,24 +70,24 @@ def check(root: Path, *, strict: bool) -> list[str]:
                 with urllib.request.urlopen(f"{base_url}/api/tags", timeout=3) as response:
                     available = response.read().decode("utf-8")
                 if model and f'"name":"{model}"' not in available and f'"name": "{model}"' not in available:
-                    issues.append(f"نموذج Ollama {model!r} غير ظاهر في /api/tags.")
+                    issues.append(f"Ollama model {model!r} is not listed by /api/tags.")
             except (OSError, urllib.error.URLError):
-                issues.append("تعذر الوصول إلى Ollama محلياً؛ شغّل خدمة Ollama قبل بدء المحادثة.")
+                issues.append("Local Ollama is unavailable; start the Ollama service before starting chat.")
     return issues
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="فحص جاهزية Reus المحلي دون أي تعديل.")
-    parser.add_argument("--strict", action="store_true", help="تحقق أيضاً من خدمة ونموذج Ollama عند اختياره.")
+    parser = argparse.ArgumentParser(description="Run read-only local Reus readiness checks.")
+    parser.add_argument("--strict", action="store_true", help="Also verify the selected Ollama service and model.")
     arguments = parser.parse_args(argv)
     root = Path(__file__).resolve().parents[1]
     issues = check(root, strict=arguments.strict)
     if issues:
-        print("Reus Doctor: لم يمر الفحص")
+        print("Reus Doctor: check did not pass")
         for issue in issues:
             print(f"- {issue}")
         return 1
-    print("Reus Doctor: الجاهزية المحلية مكتملة.")
+    print("Reus Doctor: local readiness checks passed.")
     return 0
 
 

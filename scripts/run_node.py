@@ -5,23 +5,24 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-scripts/run_node.py — نقطة الدخول الفعلية لتشغيل عقدة واحدة مستقلة كاملة
-(أي دور من أدوار `infrastructure/node_roles.py`) كعملية طويلة الأمد — على
-جهاز مطوّر محلي أو داخل عقدة سحابية (`node_cloud_init.py` يولّد سكربت
-cloud-init يستدعي هذا الملف بالضبط، بنفس المعاملات).
+scripts/run_node.py is the operational entry point for one complete standalone
+node (any role in `infrastructure/node_roles.py`) running as a long-lived
+process, either on a local developer machine or in a cloud node. The cloud-init
+generator invokes this exact file with the same arguments.
 
-كل المنطق الفعلي في `infrastructure/node_runtime.py` (مُختبَر مباشرة هناك
-بمعزل عن سطر الأوامر) — هذا الملف مجرد ربط argparse + إشارات إيقاف نظيفة.
+All operating logic lives in `infrastructure/node_runtime.py`, where it is
+tested directly. This file only connects argparse handling to clean shutdown
+signals.
 
-أمثلة استخدام:
-    # عقدة أولى مستقلة (بلا انضمام لعنقود):
+Usage examples:
+    # First standalone node, without joining an existing cluster:
     python3 scripts/run_node.py --role text-node --data-dir /var/lib/reus/node1
 
-    # عقدة ثانية تنضم لعنقود العقدة الأولى (تنتظر موافقة بشرية عبر تلغرام
-    # على الطرف الأول — لا تعليق صامت، الرسالة تُطبع فورًا مع مهلة الانتظار):
-    python3 scripts/run_node.py --role cipher-node --data-dir /var/lib/reus/node2 \\
-        --mtls-port 8444 --bootstrap-port 8081 \\
-        --seed-url http://<عنوان-العقدة-الأولى>:8080
+    # A second node joins the first node's cluster. The first node requires a
+    # human Telegram approval; the request is surfaced immediately and times out.
+    python3 scripts/run_node.py --role cipher-node --data-dir /var/lib/reus/node2 \
+        --mtls-port 8444 --bootstrap-port 8081 \
+        --seed-url http://<first-node-address>:8080
 """
 from __future__ import annotations
 
@@ -42,30 +43,30 @@ logger = logging.getLogger("reus.run_node")
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="تشغيل عقدة Reus مستقلة كاملة.")
-    parser.add_argument("--role", required=True, choices=sorted(NODE_ROLES), help="دور العقدة")
-    parser.add_argument("--data-dir", required=True, help="مسار تخزين بيانات العقدة (هوية، ذاكرة، قدرات)")
+    parser = argparse.ArgumentParser(description="Run one complete standalone Reus node.")
+    parser.add_argument("--role", required=True, choices=sorted(NODE_ROLES), help="Node role")
+    parser.add_argument("--data-dir", required=True, help="Node data directory for identity, memory, and capabilities")
     parser.add_argument(
         "--mtls-host",
         default="127.0.0.1",
-        help="عنوان الاستماع لـmTLS؛ loopback افتراضياً. مرر 0.0.0.0 صراحةً فقط مع جدار حماية مناسب.",
+        help="mTLS bind address; loopback by default. Pass 0.0.0.0 explicitly only with an appropriate firewall.",
     )
     parser.add_argument("--mtls-port", type=int, default=8443)
     parser.add_argument(
         "--bootstrap-host",
         default="127.0.0.1",
-        help="عنوان بوابة التمهيد؛ loopback افتراضياً. مرر 0.0.0.0 صراحةً فقط عند الحاجة لعقدة خارجية.",
+        help="Bootstrap gateway address; loopback by default. Pass 0.0.0.0 explicitly only when an external node requires it.",
     )
     parser.add_argument("--bootstrap-port", type=int, default=8080)
-    parser.add_argument("--node-label", default=None, help="تسمية مقروءة للعقدة (اختياري)")
+    parser.add_argument("--node-label", default=None, help="Human-readable node label (optional)")
     parser.add_argument(
-        "--seed-url", default=None, help="عنوان بوابة تمهيد عقدة موجودة للانضمام إليها (اختياري)"
+        "--seed-url", default=None, help="Existing node bootstrap gateway to join (optional)"
     )
     parser.add_argument(
         "--join-timeout-seconds",
         type=float,
         default=300.0,
-        help="أقصى مدة انتظار لموافقة بشرية على طلب الانضمام قبل الفشل",
+        help="Maximum wait for a human approval of the join request before failing",
     )
     return parser.parse_args(argv)
 
