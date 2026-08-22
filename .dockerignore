@@ -1,0 +1,17 @@
+.git
+# Project: Reus
+# Founder: Lotfi Mahiddine
+# Organization: Reulink
+# Contact: Contact@reulink.app
+
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+tests/
+docs/
+.github/
+requirements-dev.lock

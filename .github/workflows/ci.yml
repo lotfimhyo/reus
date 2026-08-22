@@ -1,0 +1,30 @@
+# Project: Reus | Founder: Lotfi Mahiddine | Organization: Reulink
+name: Reus quality gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Run local quality gate
+        env:
+          REUS_STORAGE_BACKEND: memory
+          REUS_EVENT_BUS_BACKEND: memory
+        run: bash scripts/run_local_quality.sh

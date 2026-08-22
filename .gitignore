@@ -1,0 +1,32 @@
+# Project: Reus | Founder: Lotfi Mahiddine | Organization: Reulink
+# Local secrets, identities, runtime data, and development artifacts never
+# belong in source control or in a distributable release archive.
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+data/
+storage/
+*.sqlite
+*.sqlite3
+*.db
+*.jsonl
+*.pem
+*.key
+*.raw
+component_identity.json
+raft_state.json
+raft_state.json.snapshot
+pending_joins.json
+peers.json
+trust_bundle.pem
+*.log
+coverage.xml
+htmlcov/
+dist/
+build/
+*.zip

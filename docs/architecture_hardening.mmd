@@ -1,0 +1,24 @@
+%% Project: Reus | Founder: Lotfi Mahiddine | Organization: Reulink
+flowchart LR
+    Client[Public Client] --> Public[public_app\n/chat /app]
+    Admin[Admin / VPN / Proxy] --> AdminApp[admin_app\nagents workflows memory observability]
+    Public --> Gateway[Common HTTP Guard\nrequest id • size cap • security headers]
+    AdminApp --> Gateway
+    Gateway --> Auth[Identity & Authorization\nadmin key • user key • agent scopes]
+    Auth --> Limits[Rate Limiter\nsliding window • bounded memory]
+    Limits --> Router[Task / Model Router]
+    Router --> Exec[Executor Layer\ndefault • model_router • ollama • cognitive]
+    Exec --> Sandbox[Capability & Sandbox Boundary]
+    Exec --> Memory[Memory Ports\nin-memory • PostgreSQL/pgvector]
+    Exec --> Events[Event Bus\nin-process • Redis]
+    Events --> Observability[Audit / Observability\nrequest_id • metrics • event log]
+    Memory --> Observability
+    AdminApp --> Settings[Allowlisted Settings Writer\nmasked secrets • restart required]
+    Secrets[External Secret Provider\nenv • Vault • AWS] --> Settings
+
+    classDef boundary fill:#f1f5f9,stroke:#334155,stroke-width:1px;
+    classDef security fill:#fee2e2,stroke:#991b1b,stroke-width:2px;
+    classDef data fill:#dcfce7,stroke:#166534,stroke-width:1px;
+    class Public,AdminApp,Gateway,Auth,Limits,Settings boundary;
+    class Auth,Limits,Sandbox security;
+    class Memory,Events,Observability,Secrets data;

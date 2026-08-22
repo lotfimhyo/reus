@@ -1,0 +1,18 @@
+# Project: Reus
+# Founder: Lotfi Mahiddine
+# Organization: Reulink
+# Contact: Contact@reulink.app
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+exclude = ["alembic/versions", "__pycache__"]
+
+[tool.ruff.lint]
+# Deliberately conservative to start (only genuine bugs: unused imports, dead
+# variables, syntax errors) instead of enabling every stylistic rule at once
+# against a mature existing codebase — progressive tightening (E501 line
+# length, docstring conventions, etc.) is a separate roadmap item once CI is
+# consistently green under this first baseline.
+select = ["E", "F", "I"]
+ignore = ["E501"]  # line length: much of the code is bilingual (Arabic/English), the automated rule isn't reliable here

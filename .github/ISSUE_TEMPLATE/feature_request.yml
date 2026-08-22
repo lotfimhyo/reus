@@ -1,0 +1,29 @@
+# Project: Reus | Founder: Lotfi Mahiddine | Organization: Reulink
+name: Feature proposal
+description: Propose a bounded, testable improvement to Reus.
+title: "proposal: "
+labels: ["proposal"]
+body:
+  - type: markdown
+    attributes:
+      value: "Explain the user value, safety boundary, and how the change can be tested. Do not request silent purchasing, unrestricted remote control, or secret-handling shortcuts."
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and intended outcome
+    validations:
+      required: true
+  - type: textarea
+    id: design
+    attributes:
+      label: Proposed design and boundaries
+      description: Include data handling, permissions, failure behavior, and alternatives.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation plan
+      description: State the tests, acceptance criteria, and operational evidence needed.
+    validations:
+      required: true

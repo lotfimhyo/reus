@@ -1,0 +1,30 @@
+# Project: Reus | Founder: Lotfi Mahiddine | Organization: Reulink
+name: Bug report
+description: Report a reproducible defect without exposing private data or credentials.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: "Do not include API keys, Telegram tokens, certificates, prompts with private data, audit logs, or exploit details. Use SECURITY.md for vulnerabilities."
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: "e.g. v0.1.0 or abc1234"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include safe, deterministic steps and expected versus actual behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, execution mode, and any non-secret configuration relevant to the issue.
+    validations:
+      required: true

@@ -1,0 +1,665 @@
+<!-- Project: Reus | Founder: Lotfi Mahiddine | Organization: Reulink | Contact: Contact@reulink.app -->
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reus-Veritas OS — لوحة التحكم</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --border: #e3e6ea;
+    --text: #1f2430;
+    --text-muted: #6b7280;
+    --accent: #2563eb;
+    --accent-light: #eaf1ff;
+    --ok: #16a34a;
+    --warn: #d97706;
+    --danger: #dc2626;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Cairo', sans-serif;
+    min-height: 100vh;
+  }
+  .mono { font-family: ui-monospace, 'Courier New', monospace; direction: ltr; unicode-bidi: isolate; font-size: 0.85em; }
+
+  .layout { display: flex; min-height: 100vh; }
+
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    padding: 20px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .brand { font-size: 1.15rem; font-weight: 700; padding: 0 8px 18px 8px; }
+  .brand small { display: block; font-size: 0.72rem; font-weight: 400; color: var(--text-muted); margin-top: 2px; }
+  .nav-btn {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-radius: 8px;
+    border: none; background: none; cursor: pointer;
+    font-family: inherit; font-size: 0.92rem; color: var(--text);
+    text-align: right; width: 100%;
+  }
+  .nav-btn:hover { background: var(--bg); }
+  .nav-btn.active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+  .nav-spacer { flex: 1; }
+  .chat-link-btn {
+    display: block; text-align: center; text-decoration: none;
+    padding: 10px 12px; border-radius: 8px;
+    background: var(--accent); color: #fff; font-weight: 600; font-size: 0.9rem;
+  }
+  .chat-link-btn:hover { opacity: 0.92; }
+
+  .main { flex: 1; padding: 22px 28px; max-width: 1100px; }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px; gap: 16px; flex-wrap: wrap;
+  }
+  .page-title { font-size: 1.3rem; font-weight: 700; margin: 0; }
+  .conn-panel { display: flex; align-items: center; gap: 10px; }
+  .conn-dot { width: 9px; height: 9px; border-radius: 50%; background: #cbd5e1; }
+  .conn-dot.live { background: var(--ok); }
+  .conn-dot.error { background: var(--danger); }
+  #apiKeyInput {
+    font-family: inherit; padding: 8px 12px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--panel); color: var(--text);
+    width: 220px;
+  }
+
+  .cards-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 22px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px 18px;
+  }
+  .card-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; }
+  .card-value { font-size: 1.7rem; font-weight: 700; }
+  .card-breakdown { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; font-size: 0.75rem; color: var(--text-muted); }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px 20px; margin-bottom: 18px;
+  }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .panel-title { font-size: 1rem; font-weight: 700; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th { text-align: right; color: var(--text-muted); font-weight: 600; font-size: 0.78rem; padding: 8px 6px; border-bottom: 1px solid var(--border); }
+  td { padding: 9px 6px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  .id-cell { color: var(--text-muted); font-size: 0.78rem; }
+
+  .badge { padding: 2px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+  .badge.active, .badge.completed, .badge.running { background: #dcfce7; color: #166534; }
+  .badge.failed, .badge.terminated { background: #fee2e2; color: #991b1b; }
+  .badge.idle, .badge.pending, .badge.in_progress { background: #fef3c7; color: #92400e; }
+
+  .empty-state { text-align: center; padding: 24px; color: var(--text-muted); font-size: 0.88rem; }
+
+  .register-form { display: flex; gap: 8px; margin-bottom: 14px; }
+  .register-form input { flex: 1; font-family: inherit; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--border); }
+  .register-form button, .settings-form button {
+    font-family: inherit; padding: 9px 18px; border-radius: 8px; border: none;
+    background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; font-size: 0.9rem;
+  }
+  .register-form button:hover, .settings-form button:hover { opacity: 0.92; }
+  .register-form button:disabled, .settings-form button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .event-filter select { font-family: inherit; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 12px; }
+  .event-log { max-height: 420px; overflow-y: auto; }
+  .event-row { display: flex; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+  .event-row:last-child { border-bottom: none; }
+  .event-time { color: var(--text-muted); flex-shrink: 0; font-family: ui-monospace, monospace; direction: ltr; }
+  .event-name { font-weight: 600; }
+  .event-payload { color: var(--text-muted); }
+
+  .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; }
+  .field .field-hint { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
+  .field input[type=text], .field input[type=password], .field select {
+    width: 100%; font-family: inherit; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--border);
+  }
+  .field-checkbox { display: flex; align-items: center; gap: 8px; }
+  .field-checkbox input { width: auto; }
+  .settings-note {
+    background: var(--accent-light); border-radius: 8px; padding: 12px 14px;
+    font-size: 0.85rem; color: #1e3a8a; margin-bottom: 16px;
+  }
+  .settings-save-status { margin-top: 10px; font-size: 0.85rem; }
+  .settings-save-status.ok { color: var(--ok); }
+  .settings-save-status.err { color: var(--danger); }
+
+  .tab-section { display: none; }
+  .tab-section.active { display: block; }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="brand">Reus-Veritas OS<small>لوحة التحكم</small></div>
+    <button class="nav-btn active" data-tab="overview">نظرة عامة</button>
+    <button class="nav-btn" data-tab="agents">الوكلاء</button>
+    <button class="nav-btn" data-tab="nodes">العقد</button>
+    <button class="nav-btn" data-tab="workflows">Workflows</button>
+    <button class="nav-btn" data-tab="events">سجل الأحداث</button>
+    <button class="nav-btn" data-tab="settings">الإعدادات</button>
+    <div class="nav-spacer"></div>
+    <a class="chat-link-btn" href="/app" target="_blank">فتح واجهة المحادثة للمستخدمين ↗</a>
+  </nav>
+
+  <main class="main">
+    <div class="topbar">
+      <h1 class="page-title" id="pageTitle">نظرة عامة</h1>
+      <div class="conn-panel">
+        <span id="connDot" class="conn-dot"></span>
+        <span id="connLabel" class="mono">غير متصل</span>
+        <input id="apiKeyInput" type="password" placeholder="مفتاح API الإداري (X-API-Key)">
+      </div>
+    </div>
+
+    <section class="tab-section active" data-section="overview">
+      <div class="cards-row">
+        <div class="card">
+          <div class="card-label">الوكلاء</div>
+          <div class="card-value" id="statAgents">—</div>
+          <div class="card-breakdown" id="statAgentsBreakdown"></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Workflows</div>
+          <div class="card-value" id="statWorkflows">—</div>
+          <div class="card-breakdown" id="statWorkflowsBreakdown"></div>
+        </div>
+        <div class="card">
+          <div class="card-label">المهام</div>
+          <div class="card-value" id="statTasks">—</div>
+          <div class="card-breakdown" id="statTasksBreakdown"></div>
+        </div>
+        <div class="card">
+          <div class="card-label">الأحداث المُسجَّلة</div>
+          <div class="card-value" id="statEvents">—</div>
+          <div class="card-breakdown" id="statEventsBreakdown"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">مرحبًا 👋</div>
+        <p style="color: var(--text-muted); font-size: 0.9rem; line-height: 1.7;">
+          هذه لوحة تحكم <strong>الإدارة</strong> — تعرض بيانات تشغيلية داخلية (وكلاء، مهام، أحداث).
+          واجهة المحادثة الخاصة بالمستخدمين العاديين صفحة أخرى منفصلة تمامًا، بمفتاح دخول مختلف —
+          افتح <a href="/app" target="_blank">/app</a> أو اضغط الزر في الشريط الجانبي.
+          أدخل مفتاح API الإداري أعلاه لتفعيل هذه اللوحة.
+        </p>
+      </div>
+    </section>
+
+    <section class="tab-section" data-section="agents">
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">الوكلاء</div></div>
+        <form class="register-form" id="registerForm">
+          <input id="newAgentName" type="text" placeholder="اسم الوكيل الجديد" required>
+          <button type="submit">تسجيل وكيل</button>
+        </form>
+        <table>
+          <thead><tr><th>الاسم</th><th>الحالة</th><th>المعرّف</th><th>ربط تلغرام</th></tr></thead>
+          <tbody id="agentsTableBody"></tbody>
+        </table>
+        <div class="empty-state" id="agentsEmpty" style="display:none">لا يوجد وكلاء مسجَّلون بعد</div>
+
+        <!-- يظهر مرة واحدة فقط بعد توليد رمز -- النص الصافي لا يُعرَض مطلقًا بعد هذه اللحظة -->
+        <div class="panel" id="tokenResultPanel" style="display:none; margin-top: 14px; background: var(--accent-light); border-color: var(--accent);">
+          <div class="panel-title">رمز الربط مع تلغرام</div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin: 8px 0 12px 0;">
+            انسخ هذا الرمز الآن — لن يُعرَض بنصه الكامل مرة أخرى بعد إغلاق هذه الرسالة.
+            افتح محادثة البوت في تلغرام وأرسل الأمر أدناه كما هو بالضبط:
+          </p>
+          <div class="mono" id="tokenResultValue" style="background:#fff; padding:10px 12px; border-radius:8px; border:1px solid var(--border); word-break: break-all; margin-bottom: 10px;"></div>
+          <button type="button" onclick="copyTokenCommand()">نسخ أمر /link كاملًا</button>
+          <button type="button" onclick="document.getElementById('tokenResultPanel').style.display='none'" style="background:#fff; color:var(--text); border:1px solid var(--border); margin-inline-start:8px;">إغلاق</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="tab-section" data-section="nodes">
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">أدوار العقد المتاحة محليًا</div></div>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin: -6px 0 14px 0;">
+          كل دور مجموعة مهارات جاهزة يمكن تشغيلها كعقدة مستقلة (محليًا أو على السحابة).
+        </p>
+        <table>
+          <thead><tr><th>الدور</th><th>الوصف</th><th>عدد المهارات</th></tr></thead>
+          <tbody id="rolesTableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">العقد السحابية المنشورة</div></div>
+        <div class="settings-note" id="nodesCloudNotConfigured" style="display:none">
+          لا توجد سحابة مضبوطة بعد. النشر الفعلي متاح حصريًا عبر تلغرام
+          (<span class="mono">/configure_cloud</span> ثم <span class="mono">/deploy_node</span>)
+          — يمر عبر بوابة موافقة مزدوجة عمدًا، لا زر مباشر هنا. هذا يعرض حالة
+          ما نُشر بالفعل فقط.
+        </div>
+        <div class="settings-note" id="nodesCloudError" style="display:none; background:#fee2e2; color:#991b1b;"></div>
+        <table id="instancesTable" style="display:none">
+          <thead><tr><th>الاسم</th><th>الحالة</th><th>العنوان</th><th>المزوّد/المنطقة</th><th>التكلفة الشهرية</th></tr></thead>
+          <tbody id="instancesTableBody"></tbody>
+        </table>
+        <div class="empty-state" id="instancesEmpty" style="display:none">السحابة مضبوطة، لكن لا عقد منشورة بعد.</div>
+      </div>
+    </section>
+
+    <section class="tab-section" data-section="workflows">
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">Workflows</div></div>
+        <table>
+          <thead><tr><th>الاسم</th><th>الحالة</th><th>المهام</th><th>المعرّف</th></tr></thead>
+          <tbody id="workflowsTableBody"></tbody>
+        </table>
+        <div class="empty-state" id="workflowsEmpty" style="display:none">لا يوجد Workflows بعد</div>
+      </div>
+    </section>
+
+    <section class="tab-section" data-section="events">
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">سجل الأحداث الحي</div></div>
+        <div class="event-filter">
+          <select id="eventFilter"><option value="">كل الأحداث</option></select>
+        </div>
+        <div class="event-log" id="eventLog"></div>
+        <div class="empty-state" id="eventsEmpty" style="display:none">لم تُسجَّل أي أحداث بعد</div>
+      </div>
+    </section>
+
+    <section class="tab-section" data-section="settings">
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">الإعدادات</div></div>
+        <div class="settings-note">
+          يُحفَظ أي تغيير هنا في ملف <span class="mono">.env</span> مباشرةً — بلا حاجة لفتحه يدويًا.
+          <strong>لكن تفعيل التغيير فعليًا يحتاج إعادة تشغيل الخادم</strong>
+          (اضغط <span class="mono">Run.bat</span> مرة أخرى، أو أعد تشغيل الحاوية) بعد الحفظ.
+        </div>
+
+        <div class="settings-grid">
+          <div>
+            <div class="field">
+              <label>تفعيل تلغرام</label>
+              <div class="field-checkbox">
+                <input type="checkbox" id="setTelegramEnabled">
+                <span>تشغيل استقصاء بوت تلغرام عند بدء الخادم</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>رمز بوت تلغرام (Bot Token)</label>
+              <input type="password" id="setTelegramToken" placeholder="احصل عليه من BotFather@ في تلغرام">
+              <div class="field-hint">يُعرَض هنا كموجود/فارغ فقط لأسباب أمنية، لا بنصه الفعلي بعد الحفظ.</div>
+            </div>
+            <div class="field">
+              <label>معرّفات المحادثات المسموح بها (اختياري)</label>
+              <input type="text" id="setTelegramChatIds" placeholder="مثال: 123456789,987654321">
+              <div class="field-hint">اتركه فارغًا للسماح لأي محادثة بالبدء.</div>
+            </div>
+          </div>
+          <div>
+            <div class="field">
+              <label>منفِّذ محادثة /chat</label>
+              <select id="setTaskExecutor">
+                <option value="default">default (لا يدعم /chat)</option>
+                <option value="ollama">ollama (نموذج محلي، يحتاج تثبيت Ollama)</option>
+                <option value="model_router">model_router (نماذج سحابية، يحتاج مفتاح API)</option>
+                <option value="cognitive">cognitive (توجيه قدرات محدَّدة، لا يدعم /chat أيضًا)</option>
+              </select>
+              <div class="field-hint">لتفعيل /chat فعليًا، اختر ollama أو model_router فقط.</div>
+            </div>
+            <div class="field">
+              <label>مفتاح Anthropic API (اختياري)</label>
+              <input type="password" id="setAnthropicKey" placeholder="sk-ant-...">
+            </div>
+            <div class="field">
+              <label>مفتاح OpenAI API (اختياري)</label>
+              <input type="password" id="setOpenaiKey" placeholder="sk-...">
+            </div>
+            <div class="field">
+              <label>مفتاح Google API (اختياري)</label>
+              <input type="password" id="setGoogleKey" placeholder="AIza...">
+            </div>
+          </div>
+        </div>
+
+        <form class="settings-form" id="settingsForm">
+          <button type="submit">حفظ الإعدادات</button>
+          <span class="settings-save-status" id="settingsSaveStatus"></span>
+        </form>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+const STORAGE_KEY = 'rvos_dashboard_api_key';
+const apiKeyInput = document.getElementById('apiKeyInput');
+const connDot = document.getElementById('connDot');
+const connLabel = document.getElementById('connLabel');
+const pageTitle = document.getElementById('pageTitle');
+const TAB_TITLES = { overview: 'نظرة عامة', agents: 'الوكلاء', nodes: 'العقد', workflows: 'Workflows', events: 'سجل الأحداث', settings: 'الإعدادات' };
+
+apiKeyInput.value = localStorage.getItem(STORAGE_KEY) || '';
+apiKeyInput.addEventListener('change', () => {
+  localStorage.setItem(STORAGE_KEY, apiKeyInput.value);
+  refreshAll();
+});
+
+document.querySelectorAll('.nav-btn[data-tab]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-btn[data-tab]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    document.querySelector(`.tab-section[data-section="${tab}"]`).classList.add('active');
+    pageTitle.textContent = TAB_TITLES[tab];
+    if (tab === 'settings') loadSettings();
+    if (tab === 'nodes') loadNodes();
+  });
+});
+
+async function apiGet(path) {
+  const res = await fetch(path, { headers: { 'X-API-Key': apiKeyInput.value } });
+  if (!res.ok) throw new Error(`${res.status}`);
+  return res.json();
+}
+
+async function apiPost(path, body) {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'X-API-Key': apiKeyInput.value, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`${res.status}`);
+  return res.json();
+}
+
+function setConn(state) {
+  connDot.className = 'conn-dot ' + (state === 'live' ? 'live' : state === 'error' ? 'error' : '');
+  connLabel.textContent = state === 'live' ? 'متصل' : state === 'error' ? 'خطأ في الاتصال' : 'غير متصل';
+}
+
+// يهرّب أي نص قبل إدراجه في innerHTML — إلزامي لكل بيانات قد تأتي من مصدر
+// أقل ثقة من المدير (اسم وكيل، اسم workflow، حمولة حدث) قبل عرضها هنا.
+// بدون هذا، اسم وكيل مثل <img src=x onerror=...> أو حمولة حدث ناتجة عن
+// طلب /chat عام (يحتاج مفتاح المستخدم فقط، لا مفتاح الإدارة) يمكن أن
+// تُنفِّذ جافاسكربت داخل جلسة المدير نفسها فعليًا — بما فيها سرقة مفتاح
+// الإدارة من localStorage. اكتُشِف هذا بالمراجعة الأمنية المباشرة، لا
+// افتراضًا نظريًا: لم يوجد أي تحقق من محتوى اسم الوكيل في الـ backend
+// (Field(min_length=1, max_length=200) فقط)، وكانت كل نقاط العرض هنا
+// تُدرِج القيم مباشرة عبر innerHTML بلا أي تهريب.
+function escapeHtml(value) {
+  const div = document.createElement('div');
+  div.textContent = String(value ?? '');
+  return div.innerHTML;
+}
+
+function fmtBadge(state) {
+  return `<span class="badge ${escapeHtml(state)}">${escapeHtml(state)}</span>`;
+}
+
+function renderStats(summary) {
+  document.getElementById('statAgents').textContent = summary.agents_total;
+  document.getElementById('statAgentsBreakdown').innerHTML = Object.entries(summary.agents_by_state)
+    .map(([k, v]) => `<span>${escapeHtml(k)}: ${escapeHtml(v)}</span>`).join('');
+
+  document.getElementById('statWorkflows').textContent = summary.workflows_total;
+  document.getElementById('statWorkflowsBreakdown').innerHTML =
+    `<span>completed: ${escapeHtml(summary.workflows_completed)}</span>` +
+    `<span>failed: ${escapeHtml(summary.workflows_failed)}</span>` +
+    `<span>in_progress: ${escapeHtml(summary.workflows_in_progress)}</span>`;
+
+  document.getElementById('statTasks').textContent = summary.tasks_total;
+  document.getElementById('statTasksBreakdown').innerHTML = Object.entries(summary.tasks_by_state)
+    .map(([k, v]) => `<span>${escapeHtml(k)}: ${escapeHtml(v)}</span>`).join('');
+
+  const totalEvents = Object.values(summary.events_by_name).reduce((a, b) => a + b, 0);
+  document.getElementById('statEvents').textContent = totalEvents;
+  const topEvents = Object.entries(summary.events_by_name).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  document.getElementById('statEventsBreakdown').innerHTML = topEvents
+    .map(([k, v]) => `<span>${escapeHtml(k)}: ${escapeHtml(v)}</span>`).join('');
+
+  const filter = document.getElementById('eventFilter');
+  const currentValue = filter.value;
+  const names = Object.keys(summary.events_by_name).sort();
+  filter.innerHTML = '<option value="">كل الأحداث</option>' +
+    names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+  filter.value = currentValue;
+}
+
+let _agentsById = {};
+
+async function renderAgents() {
+  const agents = await apiGet('/agents');
+  _agentsById = Object.fromEntries(agents.map(a => [a.agent_id, a]));
+  const tbody = document.getElementById('agentsTableBody');
+  document.getElementById('agentsEmpty').style.display = agents.length ? 'none' : 'block';
+  tbody.innerHTML = agents.map(a => `
+    <tr>
+      <td>${escapeHtml(a.name)}</td>
+      <td>${fmtBadge(a.state)}</td>
+      <td class="id-cell">${escapeHtml(a.agent_id)}</td>
+      <td><button type="button" class="issue-token-btn" data-agent-id="${escapeHtml(a.agent_id)}">توليد رمز لتلغرام</button></td>
+    </tr>
+  `).join('');
+}
+
+// تفويض الحدث (Event Delegation) بدل onclick مضمَّن بالسلسلة النصية عمدًا:
+// escapeHtml يحمي محتوى عقدة نصية (نص بين وسمين) فقط -- لا يهرّب علامات
+// الاقتباس، فليس آمنًا لإدراج بيانات غير موثوقة داخل قيمة أي سمة HTML
+// (بما فيها onclick="...('${...}')"). اسم الوكيل يمرّ عبر escapeHtml هنا
+// فقط داخل عقدة نصية (`<td>`) وهذا آمن؛ الزر نفسه يحمل فقط agent_id
+// (UUID مولَّد من الخادم دائمًا -- انظر domain/entities.py -- لا يمكن أن
+// يحتوي علامة اقتباس إطلاقًا)، ويُستخرَج الاسم لاحقًا من _agentsById بدل
+// تمريره عبر أي سمة HTML على الإطلاق.
+document.getElementById('agentsTableBody').addEventListener('click', (ev) => {
+  const btn = ev.target.closest('.issue-token-btn');
+  if (!btn) return;
+  issueTelegramToken(btn.dataset.agentId);
+});
+
+let _lastIssuedLinkCommand = '';
+
+async function issueTelegramToken(agentId) {
+  try {
+    const result = await apiPost(`/agents/${agentId}/tokens`, { label: 'telegram-link' });
+    _lastIssuedLinkCommand = `/link ${result.plaintext}`;
+    document.getElementById('tokenResultValue').textContent = _lastIssuedLinkCommand;
+    document.getElementById('tokenResultPanel').style.display = 'block';
+    document.getElementById('tokenResultPanel').scrollIntoView({ behavior: 'smooth' });
+  } catch (e) {
+    alert('تعذّر توليد الرمز — تحقق من مفتاح API الإداري.');
+  }
+}
+
+function copyTokenCommand() {
+  navigator.clipboard.writeText(_lastIssuedLinkCommand).then(() => {
+    alert('نُسخ. الصقه في محادثة البوت على تلغرام.');
+  });
+}
+
+async function renderWorkflows() {
+  const workflows = await apiGet('/workflows');
+  const tbody = document.getElementById('workflowsTableBody');
+  document.getElementById('workflowsEmpty').style.display = workflows.length ? 'none' : 'block';
+  tbody.innerHTML = workflows.map(w => {
+    const status = w.has_permanent_failure ? 'failed' : w.is_complete ? 'completed' : 'running';
+    return `
+      <tr>
+        <td>${escapeHtml(w.name)}</td>
+        <td>${fmtBadge(status)}</td>
+        <td class="mono">${w.tasks.length}</td>
+        <td class="id-cell">${escapeHtml(w.workflow_id)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function renderEvents() {
+  const nameFilter = document.getElementById('eventFilter').value;
+  const path = '/observability/events?limit=100' + (nameFilter ? `&name=${encodeURIComponent(nameFilter)}` : '');
+  const events = await apiGet(path);
+  const log = document.getElementById('eventLog');
+  document.getElementById('eventsEmpty').style.display = events.length ? 'none' : 'block';
+  log.innerHTML = events.map(e => {
+    const time = new Date(e.timestamp).toLocaleTimeString('en-GB');
+    const payload = JSON.stringify(e.payload);
+    return `
+      <div class="event-row">
+        <span class="event-time">${escapeHtml(time)}</span>
+        <span><span class="event-name">${escapeHtml(e.name)}</span> <span class="event-payload">${escapeHtml(payload)}</span></span>
+      </div>
+    `;
+  }).join('');
+}
+
+async function refreshAll() {
+  if (!apiKeyInput.value) { setConn('idle'); return; }
+  try {
+    const summary = await apiGet('/observability/summary?recent_events_limit=1');
+    renderStats(summary);
+    await Promise.all([renderAgents(), renderWorkflows(), renderEvents()]);
+    setConn('live');
+  } catch (e) {
+    setConn('error');
+  }
+}
+
+document.getElementById('registerForm').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const nameInput = document.getElementById('newAgentName');
+  const button = ev.target.querySelector('button');
+  button.disabled = true;
+  try {
+    await apiPost('/agents', { name: nameInput.value, permissions: [], goals: [] });
+    nameInput.value = '';
+    await refreshAll();
+  } catch (e) {
+    alert('تعذّر تسجيل الوكيل — تحقق من مفتاح API');
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.getElementById('eventFilter').addEventListener('change', renderEvents);
+
+async function loadNodes() {
+  if (!apiKeyInput.value) return;
+  try {
+    const data = await apiGet('/nodes');
+
+    document.getElementById('rolesTableBody').innerHTML = data.available_roles.map(r => `
+      <tr>
+        <td>${escapeHtml(r.label)} <span class="id-cell">(${escapeHtml(r.role_id)})</span></td>
+        <td>${escapeHtml(r.description)}</td>
+        <td class="mono">${escapeHtml(r.skill_count)}</td>
+      </tr>
+    `).join('');
+
+    document.getElementById('nodesCloudNotConfigured').style.display = data.cloud_configured ? 'none' : 'block';
+
+    const errorPanel = document.getElementById('nodesCloudError');
+    if (data.cloud_error) {
+      errorPanel.style.display = 'block';
+      errorPanel.textContent = 'تعذّر جلب حالة العقد السحابية: ' + data.cloud_error;
+    } else {
+      errorPanel.style.display = 'none';
+    }
+
+    const instances = data.deployed_instances || [];
+    document.getElementById('instancesTable').style.display = instances.length ? 'table' : 'none';
+    document.getElementById('instancesEmpty').style.display =
+      (data.cloud_configured && !data.cloud_error && instances.length === 0) ? 'block' : 'none';
+
+    document.getElementById('instancesTableBody').innerHTML = instances.map(i => `
+      <tr>
+        <td>${escapeHtml(i.name)}</td>
+        <td>${fmtBadge(i.status)}</td>
+        <td class="mono">${escapeHtml(i.ip_address || '—')}</td>
+        <td>${escapeHtml(i.provider)} / ${escapeHtml(i.region)}</td>
+        <td class="mono">${i.monthly_cost_usd != null ? '$' + escapeHtml(i.monthly_cost_usd) : '—'}</td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    // فشل التحميل هنا ليس خطأ يستحق تنبيهًا -- يبقى القسم بحالته السابقة
+  }
+}
+
+async function loadSettings() {
+  if (!apiKeyInput.value) return;
+  try {
+    const data = await apiGet('/settings');
+    const v = data.values;
+    document.getElementById('setTelegramEnabled').checked = v.REUS_TELEGRAM_ENABLED === 'true';
+    document.getElementById('setTelegramChatIds').value = v.REUS_TELEGRAM_ALLOWED_CHAT_IDS || '';
+    document.getElementById('setTaskExecutor').value = v.REUS_TASK_EXECUTOR || 'default';
+  } catch (e) {
+    // فشل التحميل هنا ليس خطأ يستحق تنبيهًا -- يبقى النموذج بقيمه الافتراضية فقط
+  }
+}
+
+document.getElementById('settingsForm').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const status = document.getElementById('settingsSaveStatus');
+  const button = ev.target.querySelector('button');
+  button.disabled = true;
+  status.textContent = '';
+  status.className = 'settings-save-status';
+
+  const values = {
+    REUS_TELEGRAM_ENABLED: document.getElementById('setTelegramEnabled').checked ? 'true' : 'false',
+    REUS_TELEGRAM_ALLOWED_CHAT_IDS: document.getElementById('setTelegramChatIds').value,
+    REUS_TASK_EXECUTOR: document.getElementById('setTaskExecutor').value,
+  };
+  const secretFields = {
+    REUS_TELEGRAM_BOT_TOKEN: 'setTelegramToken',
+    REUS_ANTHROPIC_API_KEY: 'setAnthropicKey',
+    REUS_OPENAI_API_KEY: 'setOpenaiKey',
+    REUS_GOOGLE_API_KEY: 'setGoogleKey',
+  };
+  for (const [envKey, elId] of Object.entries(secretFields)) {
+    const val = document.getElementById(elId).value;
+    if (val) values[envKey] = val;
+  }
+
+  try {
+    const result = await apiPost('/settings', { values });
+    status.textContent = result.message;
+    status.classList.add('ok');
+    Object.values(secretFields).forEach(elId => { document.getElementById(elId).value = ''; });
+  } catch (e) {
+    status.textContent = 'تعذّر الحفظ — تحقق من مفتاح API الإداري.';
+    status.classList.add('err');
+  } finally {
+    button.disabled = false;
+  }
+});
+
+refreshAll();
+setInterval(refreshAll, 3000);
+</script>
+
+</body>
+</html>

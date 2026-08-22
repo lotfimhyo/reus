@@ -1,0 +1,25 @@
+# Project: Reus | Founder: Lotfi Mahiddine | Organization: Reulink
+[Unit]
+Description=Reus distributed node %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=reus
+Group=reus
+WorkingDirectory=/opt/reus
+EnvironmentFile=/etc/reus/%i.env
+ExecStart=/opt/reus/.venv/bin/python /opt/reus/scripts/run_node.py --role ${REUS_NODE_ROLE} --data-dir ${REUS_NODE_DATA_DIR} --mtls-host ${REUS_MTLS_HOST} --mtls-port ${REUS_MTLS_PORT} --bootstrap-host ${REUS_BOOTSTRAP_HOST} --bootstrap-port ${REUS_BOOTSTRAP_PORT} --node-label ${REUS_NODE_LABEL} ${REUS_NODE_SEED_ARGS}
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/reus
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

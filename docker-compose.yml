@@ -1,0 +1,133 @@
+# Project: Reus
+# Founder: Lotfi Mahiddine
+# Organization: Reulink
+# Contact: Contact@reulink.app
+#
+# هذا الملف مخصص للتطوير/التجارب المحلية. لا يضع أسراراً ثابتة ولا يعرّض
+# PostgreSQL أو Redis أو Ollama للمضيف. أنشئ .env من .env.example قبل التشغيل.
+
+x-api-common: &api_common_env
+  REUS_ENVIRONMENT: ${REUS_ENVIRONMENT:-development}
+  REUS_API_KEY: ${REUS_API_KEY:?Set REUS_API_KEY in .env}
+  REUS_USER_API_KEY: ${REUS_USER_API_KEY:?Set REUS_USER_API_KEY in .env}
+  REUS_STORAGE_BACKEND: ${REUS_STORAGE_BACKEND:-postgres}
+  REUS_DATABASE_URL: ${REUS_DATABASE_URL:-postgresql+psycopg://reus_veritas:${REUS_POSTGRES_PASSWORD:?Set REUS_POSTGRES_PASSWORD in .env}@postgres:5432/reus_veritas_os}
+  REUS_ENCRYPTION_KEY: ${REUS_ENCRYPTION_KEY:?Set REUS_ENCRYPTION_KEY in .env}
+  REUS_EVENT_BUS_BACKEND: ${REUS_EVENT_BUS_BACKEND:-redis}
+  REUS_REDIS_URL: ${REUS_REDIS_URL:-redis://redis:6379/0}
+  REUS_TASK_EXECUTOR: ${REUS_TASK_EXECUTOR:-default}
+
+x-secure-service: &secure_service
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=64m
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${REUS_POSTGRES_USER:-reus_veritas}
+      POSTGRES_PASSWORD: ${REUS_POSTGRES_PASSWORD:?Set REUS_POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${REUS_POSTGRES_DB:-reus_veritas_os}
+    volumes:
+      - reus_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    <<: *secure_service
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    volumes:
+      - reus_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    <<: *secure_service
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - reus_ollama_data:/root/.ollama
+    profiles: ["with-ollama"]
+    <<: *secure_service
+
+  migrate:
+    build: .
+    command: ["alembic", "upgrade", "head"]
+    environment: *api_common_env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    <<: *secure_service
+
+  api:
+    build: .
+    ports:
+      - "${REUS_API_BIND:-127.0.0.1}:8000:8000"
+    environment: *api_common_env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles: ["", "combined"]
+    <<: *secure_service
+
+  # split: public_app على منفذ المضيف، وadmin_app داخلي فقط خلف VPN أو proxy.
+  api-public:
+    build: .
+    command: ["uvicorn", "api.main:public_app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "${REUS_PUBLIC_API_BIND:-127.0.0.1}:8000:8000"
+    environment: *api_common_env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles: ["split"]
+    <<: *secure_service
+
+  api-admin:
+    build: .
+    command: ["uvicorn", "api.main:admin_app", "--host", "0.0.0.0", "--port", "8001"]
+    expose:
+      - "8001"
+    environment: *api_common_env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    profiles: ["split"]
+    <<: *secure_service
+
+volumes:
+  reus_postgres_data:
+  reus_redis_data:
+  reus_ollama_data:

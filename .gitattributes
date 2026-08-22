@@ -1,0 +1,3 @@
+# Project: Reus | Founder: Lotfi Mahiddine | Organization: Reulink
+# Retain inherited Python source formatting while keeping substantive whitespace checks enabled.
+*.py whitespace=-blank-at-eof

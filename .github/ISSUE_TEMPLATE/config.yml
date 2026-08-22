@@ -1,0 +1,9 @@
+# Project: Reus | Founder: Lotfi Mahiddine | Organization: Reulink
+blank_issues_enabled: false
+contact_links:
+  - name: Security reporting
+    url: mailto:Contact@reulink.app
+    about: Do not disclose vulnerabilities, secrets, or private data in public issues.
+  - name: Official Reulink website
+    url: https://reulink.app
+    about: Visit the official Reulink project website.
