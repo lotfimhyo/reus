@@ -5,16 +5,16 @@
 
 """
 Domain layer: AgentToken.
-يمثل بيانات اعتماد (Credential) خاصة بوكيل واحد فقط، تُستخدم بديلًا عن مفتاح
-API الرئيسي المشترك للسماح لوكيل بالتصرف نيابة عن نفسه فقط (لا يمكن لرمز وكيل
-A انتحال شخصية وكيل B). النص الصافي للرمز لا يُخزَّن أبدًا — فقط hash أحادي
-الاتجاه (راجع infrastructure/token_hashing.py)، تمامًا كأي بيانات اعتماد حقيقية.
+Represents a credential for exactly one agent. It can replace the shared primary
+API key only for that agent's self-service actions; an agent A token cannot
+impersonate agent B. Token plaintext is never stored—only a one-way hash, as
+for any real credential.
 
-scopes: مجموعة الصلاحيات التي يُسمح لهذا الرمز تحديدًا باستخدامها، وهي دائمًا
-مجموعة جزئية (Subset) من صلاحيات الوكيل الحالية وقت التحقق — وليس وقت الإصدار
-فقط. أي تقليص لاحق في صلاحيات الوكيل نفسه يُقلّص تلقائيًا الحد الأقصى الفعلي
-لكل رموزه أيضًا (راجع AgentTokenService.get_effective_scopes)، حتى لو بقيت
-scopes المخزَّنة هنا كما هي — دفاع متعدد الطبقات (Defense in Depth).
+scopes are the permissions this token may use. They are always evaluated as a
+subset of the agent's current permissions at verification time, not merely at
+issuance. A later reduction in an agent's permissions automatically reduces the
+effective maximum for every token through AgentTokenService.get_effective_scopes,
+even when the stored scopes remain unchanged. This is defense in depth.
 """
 from __future__ import annotations
 
@@ -25,19 +25,19 @@ from datetime import datetime, timezone
 
 class TokenAlreadyRevoked(Exception):
     def __init__(self, token_id: str):
-        super().__init__(f"الرمز '{token_id}' مُلغى مسبقًا")
+        super().__init__(f"Token '{token_id}' is already revoked")
 
 
 class ScopeExceedsAgentPermissions(Exception):
     def __init__(self, excess: frozenset[str]):
-        super().__init__(f"لا يمكن منح الرمز صلاحيات لا يملكها الوكيل نفسه: {sorted(excess)}")
+        super().__init__(f"A token cannot receive permissions its agent does not have: {sorted(excess)}")
 
 
 @dataclass
 class AgentToken:
     agent_id: str
-    token_hash: str  # SHA-256 للنص الصافي؛ النص الصافي نفسه لا يُحفَظ أبدًا بعد لحظة الإصدار
-    label: str = ""  # وصف اختياري يساعد الوكيل/المشغّل على تمييز الرموز المتعددة
+    token_hash: str  # SHA-256 of plaintext; plaintext is never retained after issuance.
+    label: str = ""  # Optional label that distinguishes multiple tokens for an agent or operator.
     scopes: frozenset[str] = field(default_factory=frozenset)
     token_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     revoked: bool = False
