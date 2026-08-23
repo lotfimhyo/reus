@@ -12,7 +12,7 @@ from domain.workflow import Workflow
 
 class WorkflowNotFound(Exception):
     def __init__(self, workflow_id: str):
-        super().__init__(f"لم يتم العثور على Workflow بالمعرّف: {workflow_id}")
+        super().__init__(f"No workflow was found for id: {workflow_id}")
 
 
 class WorkflowRepository(ABC):
