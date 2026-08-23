@@ -4,9 +4,9 @@
 # Contact: Contact@reulink.app
 
 """
-Repository Pattern لطبقة الذاكرة الدلالية.
-لا يعرف شيئًا عن FAISS أو أي محرك بحث متجهي بعينه، حتى يمكن استبداله
-(مثلاً بـ pgvector أو Pinecone) دون المساس بطبقة التطبيق.
+Repository pattern for the semantic-memory layer. It remains independent of
+FAISS and any particular vector search engine, allowing an implementation such
+as pgvector or Pinecone to be substituted without changing the application layer.
 """
 from __future__ import annotations
 
@@ -18,14 +18,14 @@ from domain.memory import MemoryRecord
 
 class MemoryNotFound(Exception):
     def __init__(self, memory_id: str):
-        super().__init__(f"لم يتم العثور على مقطع ذاكرة بالمعرّف: {memory_id}")
+        super().__init__(f"No memory record was found for id: {memory_id}")
         self.memory_id = memory_id
 
 
 @dataclass
 class SearchResult:
     record: MemoryRecord
-    score: float  # تشابه جيب التمام (كلما اقترب من 1 كان أكثر تشابهًا)
+    score: float  # Cosine similarity; values closer to 1 are more similar.
 
 
 class MemoryRepository(ABC):
