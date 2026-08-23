@@ -3,10 +3,10 @@
 # Organization: Reulink
 # Contact: Contact@reulink.app
 
-"""
-Application Layer (Use Cases). لا يعرف شيئًا عن FastAPI أو HTTP.
-يستقبل تبعياته (Repository, EventBus) عبر الحقن (Dependency Injection)
-حتى يبقى قابلًا للاختبار والاستبدال بمعزل عن أي إطار عمل.
+"""Application-layer use cases independent of FastAPI and HTTP.
+
+Dependencies such as repositories and the event bus are injected so this
+service remains testable and replaceable outside a framework.
 """
 from __future__ import annotations
 
@@ -53,10 +53,8 @@ class AgentService:
         return agent
 
     def record_call(self, agent_id: str, fn, *args, **kwargs):
-        """
-        ينفذ عملية نيابة عن الوكيل مع قياس زمن التنفيذ وتسجيله في مؤشرات الأداء
-        (تلبية لمتطلب: قياس سرعة التنفيذ وعدد الطلبات).
-        """
+        """Execute an operation for an agent while measuring latency and
+        recording request-success metrics."""
         agent = self._repo.get(agent_id)
         start = time.perf_counter()
         success = True
