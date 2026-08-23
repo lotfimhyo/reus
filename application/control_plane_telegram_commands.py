@@ -58,16 +58,16 @@ class ControlPlaneTelegramCommands:
             request = PairingRequest(pairing_id=pairing_id, claim_token=claim, control_plane_url=panel_url, core_url=core_url)
             self._post_json(f"{panel_url}/api/reus/pairing/claim", {"pairing_id": pairing_id, "core_url": core_url, "claim_hash": record.claim_hash, "expires_at": record.expires_at})
         except PairingError as exc:
-            self._telegram.deliver(chat_id, f"تعذر إنشاء الربط: {exc}")
+            self._telegram.deliver(chat_id, f"Pairing could not be created: {exc}")
             return
 
         self._telegram.request_approval(
             chat_id=chat_id,
             approval_id=request.pairing_id,
             description=(
-                "ربط خادم لوحة تحكم Reus جديد بالمحادثة العامة المحدودة فقط. "
-                f"لوحة التحكم: {request.control_plane_url} | النواة: {request.core_url}. "
-                "لن يُرسل مفتاح الإدارة ولن يظهر مفتاح المحادثة في Telegram."
+                "Pair a new Reus control-plane server with this restricted public chat only. "
+                f"Control plane: {request.control_plane_url} | Core: {request.core_url}. "
+                "The admin key will not be sent, and the claim token will not appear in Telegram."
             ),
             on_approve=lambda: self._deliver_claim(chat_id, request),
             on_reject=lambda: None,
@@ -76,7 +76,7 @@ class ControlPlaneTelegramCommands:
     def _parse_urls(self, args: str) -> tuple[str, str]:
         values = args.split()
         if len(values) != 2:
-            raise PairingError("الاستخدام: /pair_control_plane <panel-url> <core-url>")
+            raise PairingError("Usage: /pair_control_plane <panel-url> <core-url>")
         panel_url, core_url = (self._validate_url(value) for value in values)
         return panel_url, core_url
 
@@ -84,9 +84,9 @@ class ControlPlaneTelegramCommands:
     def _validate_url(value: str) -> str:
         parsed = urlparse(value)
         if parsed.scheme not in {"https", "http"} or not parsed.netloc or parsed.username or parsed.password or parsed.query or parsed.fragment:
-            raise PairingError("يجب أن يكون العنوان http(s) صالحاً بلا بيانات دخول أو query أو fragment.")
+            raise PairingError("A valid http(s) URL without credentials, query, or fragment is required.")
         if parsed.scheme != "https" and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
-            raise PairingError("استخدم HTTPS لأي عنوان غير محلي.")
+            raise PairingError("Use HTTPS for every non-local address.")
         return value.rstrip("/")
 
     def _deliver_claim(self, chat_id: str, request: PairingRequest) -> None:
@@ -107,8 +107,8 @@ class ControlPlaneTelegramCommands:
         # stays server-to-server so Telegram cannot accidentally expose it.
         self._telegram.deliver(
             chat_id,
-            f"تم إرسال تفويض الربط {record.pairing_id} إلى خادم اللوحة عبر قناة HTTPS. "
-            "ستظهر حالة الربط في اللوحة خلال دقائق، أو أعد الأمر إذا أخفق الاتصال.",
+            f"Pairing authorization {record.pairing_id} was sent to the control-plane server over HTTPS. "
+            "The pairing status will appear in the control plane shortly; run the command again if delivery fails.",
         )
 
     @staticmethod
@@ -121,4 +121,4 @@ class ControlPlaneTelegramCommands:
         )
         with urllib.request.urlopen(request, timeout=10) as response:  # nosec B310: URL is admin-approved and HTTPS-enforced.
             if response.status < 200 or response.status >= 300:
-                raise PairingError(f"خادم اللوحة أعاد الحالة {response.status}")
+                raise PairingError(f"The control-plane server returned status {response.status}")
