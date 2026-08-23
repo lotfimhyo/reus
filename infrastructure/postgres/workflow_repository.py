@@ -4,9 +4,10 @@
 # Contact: Contact@reulink.app
 
 """
-PostgresWorkflowRepository: يخزّن Workflow (Aggregate Root) كمستند JSON واحد.
-عند القراءة، يُعاد بناء كائنات TaskNode وWorkflow بالكامل عبر منطق الدومين
-(وليس عبر ORM مباشر) حتى تبقى كل قواعد الاتساق (كشف الحلقات إلخ) مطبَّقة كما هي.
+PostgresWorkflowRepository stores a Workflow aggregate root as one JSON
+document. On reads, TaskNode and Workflow objects are reconstructed entirely
+through domain logic, rather than direct ORM mapping, so all consistency rules
+(including cycle detection) remain enforced.
 """
 from __future__ import annotations
 
