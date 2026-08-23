@@ -4,11 +4,12 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-أول اختبارات لـ AnthropicModelProvider (infrastructure/model_providers.py)
-— كانت 0% مغطاة. يستخدم محاكاة (mock) لعميل Anthropic لتفادي أي استدعاء
-شبكي حقيقي، ويثبت: رفض بناء بلا مفتاح API، تغليف أخطاء SDK في
-ModelProviderError بدل تسريبها كما هي، وبناء ModelResponse الصحيح من
-استجابة ناجحة (بما في ذلك تجميع نصوص عدة كتل content).
+First tests for AnthropicModelProvider (infrastructure/model_providers.py),
+which previously had 0% coverage. They mock the Anthropic client to avoid any
+real network call and verify that construction without an API key is rejected,
+SDK errors are wrapped in ModelProviderError rather than leaking directly, and
+a correct ModelResponse is built from a successful response, including joined
+text from multiple content blocks.
 """
 from __future__ import annotations
 
@@ -19,9 +20,9 @@ from unittest.mock import MagicMock
 
 
 def _install_fake_anthropic_module():
-    """يُدرج وحدة `anthropic` وهمية في sys.modules قبل استيراد الوحدة تحت
-    الاختبار، حتى لا يحتاج بيئة الاختبار حزمة anthropic الحقيقية مُثبَّتة
-    بسلوك مضبوط مسبقًا — نتحكم نحن بـ APIError وAnthropic() بالكامل."""
+    """Insert a fake ``anthropic`` module into ``sys.modules`` before importing
+    the unit under test, so the test environment does not need the real package
+    installed. This fixture controls ``APIError`` and ``Anthropic()`` fully."""
     fake_module = types.ModuleType("anthropic")
 
     class FakeAPIError(Exception):
@@ -65,7 +66,7 @@ class TestAnthropicModelProvider(unittest.TestCase):
 
         text_block_1 = MagicMock(type="text", text="جزء أول. ")
         text_block_2 = MagicMock(type="text", text="جزء ثانٍ.")
-        non_text_block = MagicMock(type="tool_use")  # يجب تجاهله عند تجميع النص
+        non_text_block = MagicMock(type="tool_use")  # Must be ignored when joining text.
         fake_response = MagicMock()
         fake_response.content = [text_block_1, non_text_block, text_block_2]
         fake_response.usage.input_tokens = 12
