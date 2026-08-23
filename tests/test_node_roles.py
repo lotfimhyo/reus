@@ -4,10 +4,12 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-يثبت أن كل عقدة من العقد الخمس تُبنى فعليًا (لا افتراضًا) عبر
-AgentCapabilityBinder الحقيقي — بما يشمل sandbox معزول حقيقي لكل حالة
-اختبار مُعرَّفة في AgentSpec — ثم يُنفَّذ كل قدرة منشورة فعليًا عبر
-LocalExecutor على مدخل حقيقي، متحقّقًا من المخرج الصحيح. لا شيء هنا محاكى.
+Verifies that each of the five node roles is actually built through
+``AgentCapabilityBinder``. Each ``AgentSpec`` test case runs in an isolated
+sandbox, then every published capability is executed by ``LocalExecutor`` with
+its defined input and checked against its expected output. The capability
+build, publication, and execution paths are exercised locally rather than
+replaced with mocks.
 
 Run: `python3 -m unittest tests.test_node_roles -v`
 """
@@ -63,9 +65,9 @@ class TestNodeRoles(unittest.TestCase):
                     descriptor = self.binder.build_and_bind(spec)
                     self.assertTrue(self.executor.is_registered(descriptor.capability_id))
 
-                    # كل AgentSpec يحمل حالة اختبار حقيقية على الأقل — نعيد
-                    # تشغيلها هنا عبر LocalExecutor (وليس فقط عبر sandbox
-                    # البناء) لإثبات أن القدرة المنشورة فعليًا صحيحة السلوك.
+                    # Each AgentSpec carries at least one defined test case.
+                    # Re-run it through LocalExecutor, not only the build
+                    # sandbox, to prove the published capability behaves correctly.
                     first_case = spec.test_cases[0]
                     result = self.executor(
                         _FakeStep(capability_id=descriptor.capability_id), {"input": first_case.input}
