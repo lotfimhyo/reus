@@ -4,16 +4,17 @@
 # Contact: Contact@reulink.app
 
 """
-اختبار تكامل حقيقي لملف الـ migration الأولي. ينشئ قاعدة بيانات PostgreSQL فارغة
-تمامًا (منفصلة عن قاعدة بيانات التطوير)، يطبّق upgrade → downgrade → upgrade عبر
-واجهة Alembic البرمجية الفعلية، ويتحقق من وجود/غياب الجداول عبر SQLAlchemy Inspector
-في كل مرحلة — وليس افتراضًا أن الأوامر "نجحت لأنها لم تُرفع استثناءً".
+Real integration test for the initial migration file. It creates a completely
+empty PostgreSQL database (separate from the development database), applies
+upgrade → downgrade → upgrade through the actual Alembic programmatic API, and
+checks table presence or absence with the SQLAlchemy Inspector at every stage;
+it does not merely assume that commands succeeded because they raised no error.
 
-ملاحظة بيئة: إنشاء/حذف قاعدة البيانات وتفعيل امتداد pgvector يتطلبان صلاحيات
-Superuser (كما هو الحال في أي بيئة PostgreSQL حقيقية)، لذا يُنفَّذان هنا عبر
-مستخدم postgres، تمامًا كخطوة يقوم بها مسؤول قاعدة بيانات مرة واحدة قبل نشر
-التطبيق. تطبيق الـ migration نفسه يتم عبر مستخدم التطبيق العادي (reus_veritas)
-كما سيحدث فعليًا في الإنتاج.
+Environment note: creating and deleting the database and enabling the pgvector
+extension require superuser privileges (as in any real PostgreSQL environment),
+so those steps run here as the postgres user, just as a database administrator
+would perform them once before deploying the application. The migration itself
+runs as the ordinary application user (reus_veritas), as it would in production.
 """
 from __future__ import annotations
 
@@ -44,10 +45,11 @@ def _run_as_postgres_on_db(db: str, sql: str) -> None:
 @pytest.fixture
 def fresh_database():
     """
-    ينشئ قاعدة بيانات فارغة تمامًا، ويضبط REUS_DATABASE_URL الفعلي لتوجيه إليها.
-    هذا ضروري لأن alembic/env.py يتجاوز عمدًا أي sqlalchemy.url يُمرَّر برمجيًا
-    ويعتمد حصرًا على get_settings().database_url (مصدر الحقيقة الوحيد في المشروع)،
-    لذا يجب محاكاة ذلك عبر متغير البيئة الفعلي وليس عبر Config فقط.
+    Creates a completely empty database and sets the real REUS_DATABASE_URL to
+    point to it. This is necessary because alembic/env.py intentionally ignores
+    any sqlalchemy.url passed programmatically and exclusively uses
+    get_settings().database_url (the project's single source of truth), so the
+    real environment variable must be simulated rather than Config alone.
     """
     _run_as_postgres(f"DROP DATABASE IF EXISTS {TEST_DB_NAME};")
     _run_as_postgres(f"CREATE DATABASE {TEST_DB_NAME} OWNER reus_veritas;")
@@ -127,14 +129,16 @@ def test_memory_records_embedding_column_uses_pgvector(fresh_database):
 
 def test_scopes_backfill_migration_inherits_agent_permissions_for_pre_existing_tokens(fresh_database):
     """
-    يتحقق أن ترحيل إضافة عمود scopes (942779d14f7c) لا يترك رموزًا موجودة مسبقًا
-    بمصفوفة فارغة (والتي تعني "بلا صلاحيات إطلاقًا" في المعنى الجديد) — بل يُعبّئها
-    فعليًا بصلاحيات وكيلها الحالية وقت الترحيل، حتى لا تُسقَط فجأة رموز كانت تعمل.
+    Verifies that the migration adding the scopes column (942779d14f7c) does not
+    leave pre-existing tokens with an empty set (which means "no permissions at
+    all" under the new semantics). Instead, it backfills each token with its
+    agent's current permissions at migration time so previously working tokens
+    are not suddenly stripped of access.
     """
     from sqlalchemy import text
 
     cfg = _alembic_config(fresh_database)
-    # التوقف عند الترحيل الذي يسبق إضافة scopes مباشرة، لإدراج بيانات "قديمة" واقعية
+    # Stop immediately before the scopes migration to insert realistic legacy data.
     command.upgrade(cfg, "fc771ea98672")
 
     engine = create_engine(fresh_database)
