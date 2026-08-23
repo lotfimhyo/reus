@@ -28,7 +28,7 @@ def capability_layer(audit_log, tmp_path):
     layer.publish(
         component_id="test-component",
         name="echo",
-        description="يُعيد نفس المدخلات كما هي — لأغراض الاختبار فقط",
+        description="Returns the same input unchanged, for testing purposes only.",
         input_schema={},
         output_schema={},
         estimated_cost=0.0,
