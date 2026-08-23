@@ -6,8 +6,8 @@ Contact: Contact@reulink.app
 Copyright: © Lotfi Mahiddine
 Architecture: Veritas AI
 
-Goal — step 1 of the cognitive cycle ("فهم الهدف") from the master
-architecture doc, section 2.5. A Goal is the structured input the Cognitive
+Goal — step 1 of the cognitive cycle (understanding the goal) from the master
+architecture document, section 2.5. A Goal is the structured input the Cognitive
 Engine reasons about; it is deliberately simple in this phase (no nested
 sub-goals, no natural-language goal parsing) — those are future-phase
 concerns.
