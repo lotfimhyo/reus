@@ -16,10 +16,10 @@ class EventLogRepository(ABC):
 
     @abstractmethod
     def list_recent(self, limit: int = 100, name_filter: str | None = None) -> list[EventLogEntry]:
-        """يُعيد الأحدث أولًا (ترتيب تنازلي حسب الوقت)."""
+        """Return newest entries first, in descending timestamp order."""
         ...
 
     @abstractmethod
     def count_by_name(self) -> dict[str, int]:
-        """عدد الأحداث المسجَّلة لكل اسم حدث، لبناء ملخص سريع."""
+        """Return recorded-event counts by event name for a quick summary."""
         ...
