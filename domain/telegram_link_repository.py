@@ -19,5 +19,5 @@ class TelegramLinkRepository(ABC):
 
     @abstractmethod
     def delete(self, chat_id: str) -> None:
-        """لا يرفع خطأ إن لم توجد محادثة مرتبطة أصلًا؛ إلغاء ربط غير موجود عملية آمنة (Idempotent)."""
+        """Do not raise when no linked chat exists; unlinking is idempotent."""
         ...
