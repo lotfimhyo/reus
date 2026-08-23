@@ -16,7 +16,10 @@ HEADERS = {"X-API-Key": API_KEY}
 
 @pytest.fixture(autouse=True)
 def reset_container():
-    """يعزل كل اختبار عبر مستودع/خدمة جديدة تمامًا (لا تسرب حالة بين الاختبارات)."""
+    """Isolate each test with a completely fresh repository and service.
+
+    No state may leak between tests.
+    """
     container.get_event_bus.cache_clear()
     container.get_agent_repository.cache_clear()
     container.get_agent_service.cache_clear()
