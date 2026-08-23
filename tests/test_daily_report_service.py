@@ -126,7 +126,7 @@ class TestDailyReportService(unittest.TestCase):
 
         self.assertTrue(self.sent_messages)
         report_text = self.sent_messages[-1][1]
-        self.assertIn("أمثلة تدريب جديدة اليوم: 2", report_text)
+        self.assertIn("New training examples today: 2", report_text)
         self.assertIn("reus-evolved-test", report_text)
 
     def test_run_once_skips_model_build_when_nothing_new(self):

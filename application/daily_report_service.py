@@ -4,17 +4,15 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-DailyReportService — "تقارير يومية لتطوره" المطلوبة صراحةً. كل دورة
-(`run_once`) حقيقية بالكامل: تحصد حلقات ناجحة جديدة فعليًا من الذاكرة
-الحدثية عبر `TrainingDatasetStore.harvest()`، تحاول بناء النموذج المتطوّر
-المعزول عبر `LocalModelBuilder.build()` (يتخطّى البناء بأمان إن كانت
-الأمثلة صفرًا — موثَّق في `local_model_builder.py`)، ثم تُركّب تقريرًا
-نصيًا حقيقيًا من هذه الأرقام الفعلية وتُرسله لكل محادثات الإدارة.
+DailyReportService produces a factual daily development report. Every
+`run_once` cycle harvests new successful episodes from episodic memory via
+`TrainingDatasetStore.harvest()`, attempts an isolated evolved-model build
+through `LocalModelBuilder.build()` only when new examples exist, and sends
+the resulting operational counts to each administrative chat.
 
-قرار تصميم متعمَّد: الحلقة الخلفية (`start`/`stop`) تستخدم
-`threading.Event.wait(interval)` لا `time.sleep()` — يسمح بإيقاف فوري ونظيف
-(`stop()` لا ينتظر انتهاء الفاصل الزمني الكامل)، وهذا فرق حقيقي مهم عمليًا
-لخدمة قد يكون فاصلها اليومي 24 ساعة.
+The background `start`/`stop` loop intentionally uses
+`threading.Event.wait(interval)` instead of `time.sleep()`, allowing a prompt,
+clean stop without waiting for an entire daily interval to elapse.
 """
 from __future__ import annotations
 
@@ -68,12 +66,12 @@ class DailyReportService:
 
         model_result: Optional[ModelBuildResult] = None
         if newly_harvested > 0:
-            # لا يُعاد بناء النموذج المتطوّر إلا عند وجود أمثلة جديدة فعلية —
-            # بناؤه من نفس البيانات القديمة يوميًا بلا داعٍ يُهدر موارد حقيقية
-            # (استدعاء ollama create فعليًا) دون أي قيمة مضافة.
+            # Rebuild only when genuinely new examples exist. Rebuilding from
+            # the same data every day would consume local Ollama resources
+            # without adding value.
             try:
                 model_result = self._model_builder.build()
-            except Exception:  # لا نُسقط التقرير كله بسبب فشل بناء النموذج
+            except Exception:  # Do not suppress the complete report on build failure.
                 logger.exception("daily_report.model_build_failed")
                 model_result = None
 
@@ -96,21 +94,21 @@ class DailyReportService:
 
     def _send_report(self, summary: DailyReportSummary) -> None:
         lines = [
-            "📊 تقرير Reus اليومي",
-            f"أمثلة تدريب جديدة اليوم: {summary.newly_harvested}",
-            f"إجمالي أمثلة التدريب المتراكمة: {summary.total_examples}",
+            "📊 Reus daily report",
+            f"New training examples today: {summary.newly_harvested}",
+            f"Total accumulated training examples: {summary.total_examples}",
         ]
         if summary.model_build is not None:
             if summary.model_build.success:
                 lines.append(
-                    f"✅ أُعيد بناء النموذج المتطوّر '{summary.model_build.model_name}' "
-                    f"({summary.model_build.examples_used} مثال)."
+                    f"✅ Evolved model '{summary.model_build.model_name}' was rebuilt "
+                    f"using {summary.model_build.examples_used} example(s)."
                 )
             else:
-                lines.append(f"⚠️ فشل إعادة بناء النموذج المتطوّر: {summary.model_build.stderr or 'غير معروف'}")
+                lines.append(f"⚠️ Evolved-model rebuild failed: {summary.model_build.stderr or 'unknown error'}")
         if summary.proposal_counts:
             formatted_counts = ", ".join(f"{status}: {count}" for status, count in sorted(summary.proposal_counts.items()))
-            lines.append(f"حالة مقترحات الحوكمة: {formatted_counts}")
+            lines.append(f"Governance proposal status: {formatted_counts}")
         text = "\n".join(lines)
         for chat_id in self._admin_chat_ids:
             self._telegram.deliver(chat_id, text)
