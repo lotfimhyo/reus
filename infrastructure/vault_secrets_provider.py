@@ -4,13 +4,13 @@
 # Contact: Contact@reulink.app
 
 """
-VaultSecretsProvider: تطبيق حقيقي وكامل عبر SDK الرسمي (hvac) لمحرك KV v2 في
-HashiCorp Vault. كل الأسرار تُقرأ من مسار واحد (secret_path) كحقول ضمن نفس
-الكائن السرّي — النمط المعتاد في Vault.
+VaultSecretsProvider uses the official hvac SDK with HashiCorp Vault KV v2.
+All secrets are read from one secret_path as fields on the same secret object,
+which is the standard Vault pattern.
 
-قرار هندسي موثّق بصدق: كود إنتاجي كامل وصحيح، لكن بيئة تطوير هذا المشروع لا
-تصل شبكيًا لأي خادم Vault خارجي (نفس القيد الموثّق مع OpenAI/Google/Telegram
-سابقًا: مقيَّدة لـ api.anthropic.com فقط). اختُبر عبر حقن عميل hvac وهمي.
+The provider is verified through an injected hvac test double. This development
+environment does not establish live network access to an external Vault server,
+so the implementation does not claim live Vault validation here.
 """
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ class VaultSecretsProvider(SecretsProvider):
         self._injected_client = client
         self._vault_addr = vault_addr
         self._vault_token = vault_token
-        self._client: Any = None  # بناء كسول (Lazy)؛ نفس الدرس المستفاد من عملاء OpenAI/Google سابقًا
+        self._client: Any = None  # Lazy construction keeps this optional client isolated.
         self._cache: dict[str, str] | None = None
 
     def _get_client(self) -> Any:
