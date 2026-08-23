@@ -3,14 +3,15 @@
 # Organization: Reulink
 # Contact: Contact@reulink.app
 
-"""محدد معدل آمن ومحدود الذاكرة لنوافذ زمنية متحركة.
+"""A secure, memory-bounded sliding-window rate limiter.
 
-**المطور:** lotfi Mahiddine
+**Founder:** Lotfi Mahiddine | **Organization:** Reulink
 
-التنفيذ محلي داخل العملية، لكنه لا يسمح بنمو الحالة بلا حد: تُنظف
-النوافذ المنتهية، وتُحذف أقدم المفاتيح عند تجاوز السقف. في النشر متعدد النسخ
-يجب استخدام محدد موزع على مستوى البوابة أو Redis؛ هذه الطبقة تبقى واجهة قابلة
-للاستبدال حتى لا تتسرب تفاصيل التخزين إلى المسارات.
+The implementation is local to the process but does not permit unbounded state:
+expired windows are cleaned and the oldest keys are evicted above the cap. A
+multi-instance deployment should use a gateway- or Redis-level distributed
+limiter. This layer remains replaceable so storage details do not leak into
+routes.
 """
 from __future__ import annotations
 
@@ -21,19 +22,20 @@ from collections import OrderedDict, deque
 
 
 class RateLimiter:
-    """واجهة محدد المعدل التي تعتمد عليها طبقة HTTP."""
+    """Rate-limiter interface used by the HTTP layer."""
 
     def allow(self, key: str) -> tuple[bool, float]:
-        """يعيد (مسموح؟، ثوانٍ حتى إعادة المحاولة إن رُفض)."""
+        """Return whether a request is allowed and retry seconds if denied."""
         raise NotImplementedError
 
 
 class InMemoryRateLimiter(RateLimiter):
-    """نافذة متحركة مع حالة محدودة وقفل صريح.
+    """A sliding window with bounded state and an explicit lock.
 
-    القفل الواحد مقصود هنا: يزيل سباقات إنشاء/حذف المفاتيح التي قد تفقد
-    تحديثاً تحت حمل متوازٍ. معدل طلبات المصادقة صغير نسبياً، وصحة عداد الحماية
-    أهم من تحسين متناهٍ في التوازي قد ينتج عنه تجاوز للحد.
+    One lock deliberately prevents key-creation and eviction races that could
+    lose an update under concurrent load. Authentication traffic is relatively
+    low, and a correct protective counter matters more than marginal parallelism
+    that could permit an over-limit request.
     """
 
     def __init__(
@@ -45,9 +47,9 @@ class InMemoryRateLimiter(RateLimiter):
         cleanup_interval_seconds: float = 60.0,
     ):
         if max_requests <= 0 or window_seconds <= 0:
-            raise ValueError("max_requests وwindow_seconds يجب أن يكونا أكبر من صفر")
+            raise ValueError("max_requests and window_seconds must be greater than zero")
         if max_keys <= 0 or cleanup_interval_seconds <= 0:
-            raise ValueError("max_keys وcleanup_interval_seconds يجب أن يكونا أكبر من صفر")
+            raise ValueError("max_keys and cleanup_interval_seconds must be greater than zero")
         self._max_requests = max_requests
         self._window_seconds = window_seconds
         self._max_keys = max_keys
@@ -89,7 +91,7 @@ class InMemoryRateLimiter(RateLimiter):
 
 
 def client_key_from_request(request) -> str:
-    """يستخرج هوية عميل مستقرة دون الوثوق بالترويسة القابلة للتزوير افتراضياً."""
+    """Extract a stable client identity without trusting forgeable headers by default."""
     from config import get_settings
 
     if get_settings().trust_proxy_headers:
