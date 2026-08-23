@@ -4,8 +4,9 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-منفذ ذاكرة بسيط للحوكمة. يستخدم للاختبار والتشغيل المحلي الأولي، ويمكن استبداله
-بمستودع PostgreSQL دون تغيير عقد مشرف الاستقلالية.
+Simple in-memory implementation for governance. Used for tests and initial
+local operation; it can be replaced by a PostgreSQL repository without
+changing the autonomy supervisor contract.
 """
 
 from __future__ import annotations
