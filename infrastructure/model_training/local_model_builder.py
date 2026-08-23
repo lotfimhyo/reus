@@ -4,30 +4,25 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-LocalModelBuilder — يبني نموذج Ollama جديد منعزل (باسم مختلف عن نموذج
-"الاستخدام" اليومي، مثل `reus-evolved`) اعتمادًا فعليًا على `ollama create`
-(أمر حقيقي مدعوم أصلًا من Ollama)، مُغذّى بأمثلة تدريب حقيقية متراكمة من
-`TrainingDatasetStore` + معرفة موثوقية حقيقية من `ReliabilityAdvisor`.
+LocalModelBuilder builds an isolated new Ollama model under a name distinct
+from the daily-use model, such as `reus-evolved`, using the real `ollama create`
+command. It consumes accumulated examples from `TrainingDatasetStore` and
+reliability information from `ReliabilityAdvisor`.
 
-**صدق معماري لازم إشهاره صراحةً، لا إخفاؤه:** هذا تقطير على مستوى
-الـPrompt/System + أمثلة قليلة (few-shot عبر `Modelfile`'s `MESSAGE`
-directives) — وليس ضبطًا دقيقًا حقيقيًا لأوزان النموذج (LoRA/full
-fine-tune). ضبط الأوزان الحقيقي يتطلب إطار تدريب (مثل llama.cpp
-LoRA/unsloth/axolotl) ووحدة معالجة رسومات (GPU) — غير متوفرين في بيئة
-التنفيذ الحالية (بلا شبكة، بلا GPU). ما يُبنى هنا حقيقي وفعّال ومدعوم رسميًا
-من Ollama (`ollama create` تنشئ فعليًا نموذجًا مسمّى جديدًا في سجل النماذج
-المحلي، قابلًا للاستدعاء ككيان منفصل تمامًا)، لكنه ليس ما يفهمه أغلب الناس
-تقنيًا من مصطلح "fine-tuning". نقطة التوسّع لضبط أوزان حقيقي لاحقًا محفوظة
-عبر `ModelfileBuilder` (استبدال الباني بمكوّن LoRA حقيقي دون تغيير أي
-مستدعٍ آخر — نفس نمط `BaseSynthesizer` القابل للاستبدال).
+**Important architectural boundary:** this is prompt/system distillation with
+few-shot examples through Modelfile `MESSAGE` directives. It is not weight
+fine-tuning such as LoRA or full fine-tuning. Weight tuning needs a dedicated
+training framework and suitable compute that are outside the current local
+execution environment. `ollama create` still creates a real, separately named
+model in the local Ollama registry, but it should not be represented as weight
+fine-tuning. `ModelfileBuilder` remains a replacement point for a future
+weight-tuning builder without changing callers.
 
-**العزل عن الاستخدام** (المطلوب صراحةً: "منعزل عن الاستخدام"): النموذج
-المبني هنا لا يُستبدَل به نموذج الاستخدام (`OllamaClient` المُستخدَم في
-`OllamaSynthesizer`/`IndependentTestReviewer`/التنفيذ اليومي) تلقائيًا أبدًا
-— يبقى تحت اسم منفصل (`model_name`)، ولا يُستدعى إلا صراحةً، ولا يُستبدَل
-النموذج الأساسي به إلا بقرار بشري صريح (أمر تلغرام منفصل، خارج نطاق هذا
-الملف عمدًا — القرار بشأن "متى نثق بالنموذج المتطوّر كافيًا لاستخدامه" قرار
-بشري لا آلي).
+**Usage isolation:** this builder never automatically replaces the daily-use
+model used by OllamaSynthesizer, IndependentTestReviewer, or daily execution.
+The built model retains its separate `model_name` and is used only explicitly.
+Replacing a base model requires a separate human decision; that decision is
+intentionally outside this builder.
 """
 from __future__ import annotations
 
@@ -40,9 +35,8 @@ from typing import Callable, Optional
 from infrastructure.cognitive_core.cognitive.learning import LearningLayer
 from infrastructure.model_training.training_dataset import TrainingDatasetStore
 
-# دالة تشغيل أوامر قابلة للحقن — الافتراضي subprocess.run الحقيقي، لكن
-# الاختبارات تحقن دالة وهمية بدل الاعتماد على وجود ollama مثبَّتًا فعليًا في
-# بيئة الاختبار (لا شبكة، لا ollama هنا) — لا شيء آخر في هذا الملف يُحاكى.
+# Injectable command runner. The default is real subprocess.run; tests inject a
+# double instead of requiring Ollama to be installed in the test environment.
 CommandRunner = Callable[[list[str]], "subprocess.CompletedProcess"]
 
 
@@ -61,9 +55,9 @@ class ModelBuildResult:
 
 
 class ModelfileBuilder:
-    """يبني محتوى Modelfile نصيًا من أمثلة تدريب + معرفة موثوقية متراكمة.
-    مفصول عن LocalModelBuilder (الذي يستدعي subprocess فعليًا) حتى يمكن
-    اختبار منطق بناء المحتوى بمعزل تام عن أي عملية خارجية."""
+    """Build textual Modelfile content from training examples and accumulated
+    reliability knowledge. It is separate from LocalModelBuilder, which makes
+    the real subprocess call, so content construction is independently testable."""
 
     def __init__(self, base_model: str = "llama3.1", max_examples_per_capability: int = 5):
         self.base_model = base_model
@@ -73,17 +67,17 @@ class ModelfileBuilder:
         lines = [f"FROM {self.base_model}"]
 
         system_prompt = (
-            "أنت نموذج Reus المتطوّر — تراكمت معرفتك من تنفيذ فعلي حقيقي لمهام "
-            "سابقة داخل نظام Reus، لا من بيانات عامة. عند الإجابة، اعتمد أولًا "
-            "على الأنماط التي أثبتت نجاحها في الأمثلة أدناه."
+            "You are the evolved Reus model. Your knowledge has accumulated from "
+            "actual execution of prior tasks within Reus, not from general data. "
+            "When responding, prioritize patterns that succeeded in the examples below."
         )
         if reliability_notes:
-            system_prompt += "\n\nملاحظات موثوقية متراكمة:\n" + "\n".join(f"- {n}" for n in reliability_notes)
+            system_prompt += "\n\nAccumulated reliability notes:\n" + "\n".join(f"- {n}" for n in reliability_notes)
         lines.append(f'SYSTEM """{system_prompt}"""')
 
         for capability_name, examples in sorted(examples_by_capability.items()):
             for example in examples[: self.max_examples_per_capability]:
-                user_text = f"[{capability_name}] المدخل: {example.input!r}"
+                user_text = f"[{capability_name}] input: {example.input!r}"
                 assistant_text = f"{example.output!r}"
                 lines.append(f'MESSAGE user """{user_text}"""')
                 lines.append(f'MESSAGE assistant """{assistant_text}"""')
@@ -123,7 +117,7 @@ class LocalModelBuilder:
                     if not capability_id:
                         continue
                     adjustment = self.learning.score_adjustment(capability_id)
-                    reliability_notes.append(f"{capability_name}: تعديل موثوقية متعلَّم = {adjustment:+.3f}")
+                    reliability_notes.append(f"{capability_name}: learned reliability adjustment = {adjustment:+.3f}")
 
             modelfile_content = self.modelfile_builder.build(examples_by_capability, reliability_notes)
             modelfile_path = self.workdir / "Modelfile"
@@ -136,7 +130,7 @@ class LocalModelBuilder:
                     modelfile_path=str(modelfile_path),
                     examples_used=0,
                     stdout="",
-                    stderr="لا توجد أمثلة تدريب متراكمة بعد — لم يُستدعَ ollama create.",
+                    stderr="No accumulated training examples exist yet; ollama create was not invoked.",
                 )
                 self.last_build = result
                 return result
