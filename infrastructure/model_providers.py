@@ -4,9 +4,10 @@
 # Contact: Contact@reulink.app
 
 """
-ModelProvider: يستدعي نموذجًا فعليًا لتوليد استجابة. تطبيق حقيقي (وليس Placeholder)
-عبر SDK أنثروبيك الرسمي. يتطلب مفتاح API فعلي (REUS_ANTHROPIC_API_KEY) ليعمل —
-بدونه يرفع خطأً واضحًا فورًا بدل فشل صامت أو استجابة وهمية.
+ModelProvider invokes a real model to generate a response. This is a real,
+non-placeholder implementation through the official Anthropic SDK. It requires
+REUS_ANTHROPIC_API_KEY; without it, the provider raises an explicit error rather
+than failing silently or returning a fabricated response.
 """
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ from dataclasses import dataclass
 
 
 class ModelProviderError(Exception):
-    """تُرفع عند فشل الاستدعاء الفعلي للنموذج (مفتاح مفقود، خطأ شبكة، خطأ من مزوّد النموذج)."""
+    """Raised when a real model call fails because of a missing key, network error, or provider error."""
 
 
 @dataclass
@@ -35,9 +36,9 @@ class AnthropicModelProvider(ModelProvider):
     def __init__(self, api_key: str | None) -> None:
         if not api_key:
             raise ModelProviderError(
-                "REUS_ANTHROPIC_API_KEY غير مُعرَّف. لا يمكن استدعاء أي نموذج فعليًا بدونه."
+                "REUS_ANTHROPIC_API_KEY is not configured. No real model can be invoked without it."
             )
-        import anthropic  # استيراد مؤجَّل: يتيح استخدام بقية النظام حتى بلا هذه الحزمة مثبّتة اختياريًا
+        import anthropic  # Deferred import keeps the rest of the system usable without this optional package.
 
         self._client = anthropic.Anthropic(api_key=api_key)
 
@@ -51,7 +52,7 @@ class AnthropicModelProvider(ModelProvider):
                 messages=[{"role": "user", "content": prompt}],
             )
         except anthropic.APIError as exc:
-            raise ModelProviderError(f"فشل استدعاء النموذج '{model_name}': {exc}") from exc
+            raise ModelProviderError(f"Model invocation failed for '{model_name}': {exc}") from exc
 
         text = "".join(block.text for block in response.content if block.type == "text")
         return ModelResponse(
