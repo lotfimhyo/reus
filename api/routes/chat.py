@@ -35,10 +35,9 @@ def enforce_chat_rate_limit(request: Request) -> None:
 router = APIRouter(
     prefix="/chat",
     tags=["chat"],
-    # الترتيب مقصود: تحديد المعدل قبل التحقق من المفتاح، لا بعده. لو كان
-    # التحقق أولًا، لَما احتُسِبت محاولات تخمين المفتاح الفاشلة ضمن الحد
-    # أصلًا (لأن الطلب يُرفَض بـ401 قبل الوصول لتحديد المعدل)، فيبقى مفتوحًا
-    # لتخمين غير محدود للمفتاح. هذا الترتيب يمنع ذلك تحديدًا.
+    # Rate-limit before key verification. If verification came first, failed
+    # key guesses would be rejected with 401 before reaching the limiter,
+    # allowing unlimited guessing. This ordering prevents that bypass.
     dependencies=[Depends(enforce_chat_rate_limit), Depends(verify_user_api_key)],
 )
 
