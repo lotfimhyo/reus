@@ -3,17 +3,15 @@
 # Organization: Reulink
 # Contact: Contact@reulink.app
 
-"""
-TaskWorker: يشترك في حدث "task.ready" ويستدعي TaskExecutor فعليًا لكل مهمة جاهزة،
-ثم يُكمل المهمة أو يُفشلها عبر OrchestratorService (مما قد يُشغّل إعادة محاولة تلقائية
-أو إلغاءً تتابعيًا، تمامًا كما لو استُدعيت نقاط API يدويًا).
+"""Execute every `task.ready` event through a real `TaskExecutor`, then mark
+the task complete or failed through `OrchestratorService`, which may trigger a
+retry or cascading cancellation just as an API call would.
 
-قرار هندسي مهم: المعالجة تتم عبر طابور (Queue) وخيوط عمّال منفصلة عن خيط النشر،
-وليس مباشرة داخل دالة رد نداء الحدث. هذا ضروري لأن InMemoryEventBus متزامن تمامًا:
-لو نفّذنا المهمة مباشرة داخل معالج الحدث، وأدّى إكمالها إلى نشر حدث "task.ready" جديد
-(للمهمة التالية في DAG)، لتراكمت استدعاءات متداخلة (Reentrancy) بعمق يتناسب مع طول
-سلسلة المهام. فصل الطابور عن خيط النشر يُبقي كل استدعاء ضحلًا وآمنًا، بغض النظر عن
-نوع EventBus المستخدم (In-Memory أو Redis).
+Processing uses a queue and worker threads rather than executing directly in an
+event callback. This matters because `InMemoryEventBus` is synchronous: direct
+execution could publish the next DAG `task.ready` event from inside the current
+callback and create a re-entrant call stack proportional to workflow depth. A
+queue keeps every callback shallow and safe for both in-memory and Redis buses.
 """
 from __future__ import annotations
 
@@ -86,7 +84,7 @@ class TaskWorker:
                 continue
             try:
                 self._process(workflow_id, task_id)
-            except Exception:  # noqa: BLE001 — يجب ألا يموت خيط العامل بسبب استثناء غير متوقع
+            except Exception:  # noqa: BLE001 - unexpected errors must not kill a worker thread
                 logger.exception("task_worker_unexpected_error")
             finally:
                 self._queue.task_done()
@@ -108,7 +106,7 @@ class TaskWorker:
         except (TaskExecutionError, AgentNotFound) as exc:
             self._orchestrator.fail_task(workflow_id, task_id, error=str(exc))
             return
-        except Exception as exc:  # noqa: BLE001 — أي خطأ تنفيذ آخر يُسجَّل كفشل مهمة عاديّ (قد يُعاد محاولته)
+        except Exception as exc:  # noqa: BLE001 - record other execution errors as ordinary task failures
             self._orchestrator.fail_task(workflow_id, task_id, error=f"{type(exc).__name__}: {exc}")
             return
 
