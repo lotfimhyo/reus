@@ -4,9 +4,10 @@
 # Contact: Contact@reulink.app
 
 """
-اختبارات GoogleModelClient. راجع ملاحظة الصدق في infrastructure/model_client.py:
-هذه البيئة لا تصل شبكيًا إلى googleapis.com إطلاقًا (بغض النظر عن أي مفتاح)،
-لذا تُحقن هذه الاختبارات عميل SDK وهميًا للتحقق من منطق التكامل الذي نملكه فعلًا.
+Tests for GoogleModelClient. See the honesty note in
+infrastructure/model_client.py: this environment has no network access to
+googleapis.com regardless of any key, so these tests inject a fake SDK client
+to verify the integration logic that is actually available.
 """
 from __future__ import annotations
 
