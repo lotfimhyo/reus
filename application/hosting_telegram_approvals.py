@@ -19,11 +19,11 @@ class HostingTelegramApprovalWorkflow:
     def request(self, chat_id: str, offer: HostingOffer, *, ttl_seconds: float = 300.0) -> PurchaseAuthorization:
         authorization = self._gate.request(offer, ttl_seconds=ttl_seconds)
         description = (
-            "تفويض استضافة لمرة واحدة فقط.\n"
-            f"المزوّد: {offer.provider}\nالخطة: {offer.plan}\nالمنطقة: {offer.region}\n"
-            f"المبلغ: {offer.monthly_price_minor} {offer.currency} / {offer.billing_period}\n"
-            f"حدود البيانات: {offer.data_boundary}\nالموارد: {offer.compute_summary}\n"
-            "الموافقة لا تنشئ مورداً ولا تدفع وحدها؛ يتطلب ذلك موصل مزود منفصلاً يستهلك هذا التفويض مرة واحدة."
+            "One-time hosting authorization.\n"
+            f"Provider: {offer.provider}\nPlan: {offer.plan}\nRegion: {offer.region}\n"
+            f"Amount: {offer.monthly_price_minor} {offer.currency} / {offer.billing_period}\n"
+            f"Data boundary: {offer.data_boundary}\nResources: {offer.compute_summary}\n"
+            "Approval alone does not create a resource or make a payment; that requires a separate provider connector that consumes this authorization once."
         )
         self._telegram.request_approval(
             chat_id=chat_id,
