@@ -20,8 +20,8 @@ _start_time = time.time()
 
 def _gpu_usage_percent() -> float | None:
     """
-    يحاول قراءة استهلاك GPU فعليًا عبر pynvml إن وُجدت بطاقة NVIDIA.
-    إن لم تتوفر المكتبة أو البطاقة، يُعاد None بصدق بدل قيمة وهمية.
+    Read actual GPU utilization through pynvml when an NVIDIA device is present.
+    Return None honestly when the library or device is unavailable.
     """
     try:
         import pynvml  # type: ignore
