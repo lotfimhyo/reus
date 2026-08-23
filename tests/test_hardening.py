@@ -3,9 +3,9 @@
 # Organization: Reulink
 # Contact: Contact@reulink.app
 
-"""اختبارات الحواجز الأمنية المضافة في مرحلة التحصين.
+"""Tests for the security guardrails added during the hardening phase.
 
-**المطور:** lotfi Mahiddine
+**Developer:** Lotfi Mahiddine
 """
 from __future__ import annotations
 
