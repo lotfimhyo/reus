@@ -4,21 +4,18 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-أول اختبارات مباشرة لـ RaftStorage وRaftNode (infrastructure/cluster_network/
-raft.py + raft_storage.py، 304 + 37 سطرًا) — كانتا مغطاتين 0% قبل هذه
-الجلسة رغم أنهما آلية الإجماع الفعلية التي يعتمد عليها ادعاء المشروع
-بمقاومة الأعطال ("a crash and restart no longer forgets a vote already
-cast or entries already accepted"). لا يختبر هذا الملف كل تفصيل، لكنه
-يغطي خصائص الأمان الجوهرية لبروتوكول Raft التي يوثّقها الكود نفسه:
+First direct tests for RaftStorage and RaftNode (infrastructure/cluster_network/
+raft.py and raft_storage.py). They cover the Raft safety properties documented
+by the code; this is not an exhaustive protocol implementation test.
 
-- استمرارية فعلية عبر إعادة تشغيل (لا محاكاة فقط: بناء عقدة، تعديل حالتها،
-  بناء عقدة **جديدة تمامًا** من نفس ملف التخزين، والتحقق من استرجاع الحالة).
-- قاعدة "صوت واحد لكل فترة (term)" — جوهر أمان الانتخاب في Raft.
-- رفض RPCs ذات فترة أقدم (stale term).
-- نسخ السجل (log replication) والتراجع عن إدخالات متعارضة.
-- التزام (commit) عبر أغلبية، واستدعاء on_commit.
-- ضغط السجل (compaction) عبر لقطة (snapshot) واستعادتها.
-- انتخاب قائد ناجح بأغلبية أصوات، والتنازل (step down) عند رؤية فترة أحدث.
+- Persistence across a restart: construct a node, alter its state, construct a
+  new node from the same storage file, and verify restored state.
+- The one-vote-per-term rule, which is core to Raft election safety.
+- Rejection of stale-term RPCs.
+- Log replication and replacement of conflicting entries.
+- Majority commit and on_commit invocation.
+- Log compaction through a snapshot and snapshot restoration.
+- Winning an election with a majority and stepping down after a higher term.
 """
 from __future__ import annotations
 
@@ -57,8 +54,8 @@ class TestRaftStorage(unittest.TestCase):
         self.assertEqual(data, {"tasks": ["a", "b"]})
 
     def test_second_save_does_not_leave_a_stale_tmp_file_behind(self):
-        """يثبت أن الكتابة الذرية (write-then-rename) لا تترك ملفات .tmp
-        متراكمة — دليل غير مباشر أن آلية إعادة التسمية الذرية تعمل فعليًا."""
+        """Verify that atomic write-then-rename leaves no stale .tmp files,
+        providing indirect evidence that the rename path completes."""
         import os
 
         self.storage.save(1, None, [])
@@ -67,9 +64,8 @@ class TestRaftStorage(unittest.TestCase):
 
 
 class TestRaftNodePersistenceAcrossRestart(unittest.TestCase):
-    """الاختبار الأهم في هذا الملف: يثبت الادعاء الفعلي للوحدة — أن إعادة
-    تشغيل حقيقية (عقدة جديدة تمامًا، لا نفس الكائن) لا تُنسي تصويتًا أو
-    فترة أو سجلًا تم قبوله، وهو شرط الأمان الجوهري في بروتوكول Raft."""
+    """Verify that a fresh node constructed from the same storage file restores
+    accepted votes, terms, and log entries, which is a core Raft safety property."""
 
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp()
@@ -92,7 +88,7 @@ class TestRaftNodePersistenceAcrossRestart(unittest.TestCase):
         self.assertTrue(granted)
         self.assertEqual(term, 5)
 
-        # عقدة جديدة تمامًا — لا نفس الكائن، تحاكي إعادة تشغيل حقيقية بعد عطل
+        # A new node object models a restart after failure rather than reuse.
         restarted = self._new_node()
         self.assertEqual(restarted.current_term, 5)
         self.assertEqual(restarted.voted_for, "node-b")
@@ -153,8 +149,8 @@ class TestRaftNodeVoteSafety(unittest.TestCase):
         self.assertEqual(term, 5)
 
     def test_refuses_second_vote_for_different_candidate_same_term(self):
-        """جوهر أمان Raft: صوت واحد فقط لكل فترة — وإلا يمكن انتخاب قائدين
-        في نفس الفترة، ما يكسر ضمان الاتساق الأساسي للبروتوكول."""
+        """Raft election safety allows only one vote per term; otherwise two
+        leaders could be elected in one term and violate consistency."""
         node = self._node()
         _, first = node.handle_request_vote(1, "candidate-a", -1, 0)
         _, second = node.handle_request_vote(1, "candidate-b", -1, 0)
@@ -197,7 +193,7 @@ class TestRaftNodeLogReplication(unittest.TestCase):
     def test_conflicting_entry_truncates_and_replaces_the_log(self):
         node = self._node()
         node.handle_append_entries(1, "leader-1", -1, 0, [{"term": 1, "command": {"v": "old"}}], -1)
-        # نفس الفهرس، فترة مختلفة => تعارض حقيقي يجب حله بالاستبدال لا الإضافة
+        # Same index with a different term is a conflict; replace, do not append.
         node.handle_append_entries(2, "leader-1", -1, 0, [{"term": 2, "command": {"v": "new"}}], -1)
         self.assertEqual(len(node.log), 1)
         self.assertEqual(node.log[0].command, {"v": "new"})
@@ -277,7 +273,8 @@ class TestRaftNodeElection(unittest.TestCase):
 
 
 class _InProcessRaftRpc:
-    """شبكة اختبار قابلة للتقسيم: تحاكي فقد الاتصال، لا تزور نتائج RPC."""
+    """Partitionable in-process test network that simulates connectivity loss
+    without fabricating RPC results."""
 
     def __init__(self):
         self.nodes = {}
@@ -315,7 +312,7 @@ class TestRaftLeaderFailureRecovery(unittest.TestCase):
         nodes["a"]._start_election()
         self.assertEqual(nodes["a"].role, Role.LEADER)
 
-        # يحاكي عطل القائد أو عزله شبكياً؛ B وC تبقيان أغلبية 2/3.
+        # Model a leader failure or network isolation; B and C retain 2/3 majority.
         rpc.unavailable.add("a")
         nodes["b"]._start_election()
         self.assertEqual(nodes["b"].role, Role.LEADER)
@@ -323,8 +320,8 @@ class TestRaftLeaderFailureRecovery(unittest.TestCase):
 
         self.assertTrue(nodes["b"].propose({"op": "reassign_after_failure", "task_id": "task-1"}))
         nodes["b"]._send_heartbeats()
-        # الجولة الأولى تنسخ الإدخال ثم تلتزمه لدى القائد بعد ACK الأغلبية.
-        # الجولة التالية تحمل leader_commit للتابع، وهو تسلسل Raft الطبيعي.
+        # The first round replicates then commits after a majority ACK.
+        # The next round carries leader_commit to the follower, as Raft requires.
         nodes["b"]._send_heartbeats()
 
         self.assertEqual(nodes["b"].commit_index, 0)
@@ -333,9 +330,10 @@ class TestRaftLeaderFailureRecovery(unittest.TestCase):
         self.assertEqual(nodes["a"].commit_index, -1)
 
     def test_expired_lease_is_requeued_and_reassigned_by_replacement_leader(self):
-        """اختبار طرفي لحالة العمل لا للانتخاب فقط: عقدة القائد تتعطل بعد
-        lease ملتزم، فتنتخب الأغلبية قائداً جديداً يعيد المهمة المنتهية ثم
-        يعيّنها من جديد. لا يحمل السجل أي payload أو ذاكرة خام."""
+        """End-to-end work-state test, not only an election test: a leader fails
+        after a committed lease, then a majority elects a replacement that
+        requeues and reassigns the expired task. The log carries no raw payload
+        or memory content."""
         from infrastructure.cluster_network.raft_cluster_node import RaftClusterNode
         from infrastructure.cluster_network.trust_store import TrustStore
 
