@@ -4,26 +4,26 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-node_runtime — التركيب الإنتاجي الحقيقي الواحد لعقدة قابلة للتشغيل
-المستقل الكامل: تُبنى كل مكوّناتها من نفس اللبنات المُختبَرة فعليًا في
-`tests/test_cluster_mtls_bootstrap.py` (هوية معاملات حقيقية، TrustStore،
-mTLS، بوابة تمهيد)، ومكوّنات العقد الخمس (`node_roles.py`) — لا بنية موازية
-جديدة. `scripts/run_node.py` غلاف رفيع فقط لسطر الأوامر يستدعي هذه الدوال.
+node_runtime is the single production composition for a fully independent,
+runnable node. It uses the same components exercised in
+`tests/test_cluster_mtls_bootstrap.py`—real transport identity, TrustStore,
+mTLS, and a bootstrap service—and the five node roles from `node_roles.py`.
+`scripts/run_node.py` is only a thin command-line wrapper around these functions.
 
-التسلسل الكامل لعقدة (`compose_node` → `start_node` → اختياريًا
-`join_cluster` → ... → `stop_node`):
-  1. هوية نقل حقيقية (شهادة X.509 + مفتاح توقيع Ed25519) وهوية مكوّن.
-  2. طبقات الذاكرة/القدرات الحقيقية (SQLite + AuditLog).
-  3. كل مهارات دور العقدة المطلوب (`NODE_ROLES[role_id].specs`) تُبنى
-     وتُربَط فعليًا عبر `AgentCapabilityBinder.build_and_bind` — بنفس بوابات
-     الأمان المستخدمة في كل مكان آخر، بلا استثناء لكون هذا "نشرًا".
-  4. خادم mTLS حقيقي (`SecureNodeServer` + `ClusterSnapshotNode`) يخدم
-     `/cluster/snapshot` لأي عقدة أخرى تنضم لاحقًا.
-  5. خادم تمهيد حقيقي (`BootstrapServer`) يستقبل طلبات انضمام عقد جديدة.
-  6. إن زُوِّد عنوان عقدة أخرى (`seed_bootstrap_url`)، هذه العقدة تنضم
-     كطالب عبر `MTLSJoinClient` — نفس آلية موافقة تلغرام البشرية المبنية
-     سابقًا تُطبَّق على الطرف المُستقبِل، لا استثناء لكون الطالب "عقدة نشر
-     سحابي" بدل عقدة تطوير محلية.
+The full node lifecycle is `compose_node` → `start_node` → optional
+`join_cluster` → … → `stop_node`:
+  1. Real transport identity: an X.509 certificate and Ed25519 signing key,
+     plus component identity.
+  2. Real memory and capability layers with SQLite and AuditLog.
+  3. Every requested node-role skill (`NODE_ROLES[role_id].specs`) is built and
+     bound through `AgentCapabilityBinder.build_and_bind` using the same gates
+     as elsewhere; deployment is not an exception.
+  4. An mTLS server (`SecureNodeServer` and `ClusterSnapshotNode`) serves
+     `/cluster/snapshot` to nodes that join later.
+  5. A bootstrap server receives new node-join requests.
+  6. When a `seed_bootstrap_url` is supplied, the node joins as an applicant
+     through MTLSJoinClient. The receiving peer still applies the existing
+     human Telegram approval flow, including for a cloud-deployed applicant.
 """
 from __future__ import annotations
 
@@ -152,11 +152,10 @@ def compose_node(
     bootstrap_port: int = 8080,
     node_label: Optional[str] = None,
 ) -> ComposedNode:
-    """يبني عقدة كاملة (كل الطبقات + الخوادم مُنشَأة، لكن **غير بادئة
-    الاستماع بعد** — انظر `start_node`) لدور مُعرَّف في `node_roles.py`.
-    يرفع `ValueError` فورًا لدور غير معروف قبل أي بناء فعلي — لا نشر جزئي
-    صامت لعقدة بلا مهارات محدَّدة."""
-    role = get_node_role(role_id)  # يرفع ValueError مبكرًا لدور غير معروف
+    """Build a complete node for a node_roles.py role. Its layers and servers
+    exist but do not listen until start_node. An unknown role raises ValueError
+    before any construction, preventing a silent partial node with no skills."""
+    role = get_node_role(role_id)  # Reject an unknown role before construction.
 
     root = Path(data_dir)
     root.mkdir(parents=True, exist_ok=True)
@@ -184,8 +183,8 @@ def compose_node(
 
     skills_bound = 0
     for spec in role.specs:
-        # يرفع CapabilityBindingRejected فورًا إن فشلت أي مهارة أساسية —
-        # لا نشر جزئي صامت لعقدة ببعض مهاراتها فقط.
+        # A failing baseline skill raises CapabilityBindingRejected immediately;
+        # never deploy a silent partial node with only some of its skills.
         binder.build_and_bind(spec)
         skills_bound += 1
 
@@ -281,9 +280,9 @@ def stop_node(composed: ComposedNode) -> None:
 
 
 def join_cluster(composed: ComposedNode, seed_bootstrap_url: str, max_wait_seconds: float = 300.0) -> JoinResult:
-    """يجب استدعاؤها بعد `start_node` (خادم mTLS يجب أن يكون يستمع فعليًا
-    قبل أن تطلب عقدة أخرى استقبال لقطتها). ينتظر (bounded) موافقة بشرية
-    فعلية عبر تلغرام على الطرف المُستقبِل — انظر توثيق `MTLSJoinClient`."""
+    """Call only after start_node, because mTLS must listen before a peer can
+    receive this node's snapshot. Waits within a bound for actual human Telegram
+    approval on the receiving side; see MTLSJoinClient documentation."""
     join_client = MTLSJoinClient(
         node_identity=composed.component_identity,
         own_identity_payload_fn=composed.own_identity_payload,
