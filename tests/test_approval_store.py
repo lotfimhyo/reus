@@ -32,7 +32,7 @@ def test_restart_cancels_unrecoverable_approval_and_keeps_audit_trail(tmp_path: 
     audit_path = tmp_path / "approvals.audit.jsonl"
     first_store = FileApprovalStore(str(records_path), str(audit_path))
     first_service = _service(first_store)
-    first_service.request_approval("admin", "deployment-1", "نشر حساس", lambda: None, lambda: None)
+    first_service.request_approval("admin", "deployment-1", "sensitive deployment", lambda: None, lambda: None)
     assert first_store.get("deployment-1").status == "pending"
 
     second_store = FileApprovalStore(str(records_path), str(audit_path))
