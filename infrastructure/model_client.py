@@ -1,23 +1,23 @@
-# Project: Reus
-# Founder: Lotfi Mahiddine
-# Organization: Reulink
-# Contact: Contact@reulink.app
-
 """
-ModelClient: يفصل "كيفية استدعاء نموذج فعليًا عبر الشبكة" عن قرار "أي نموذج نختار"
-(ModelRouter). العميل قابل للحقن، ما يسمح باختبار المنطق المحيط دون شبكة فعلية.
+Project: Reus
+Founder: Lotfi Mahiddine
+Organization: Reulink
+Contact: Contact@reulink.app
 
-يدعم هذا الملف الآن عدة مزوّدين (Anthropic, OpenAI, Google) خلف واجهة واحدة موحّدة،
-واستدعاء بأدوات (Tool Use) لمن يدعمه من المزوّدين.
+ModelClient separates the mechanism for invoking a model over the network from
+the ModelRouter decision of which model to choose. Clients are injectable so
+surrounding behavior can be tested without a real network.
 
-قرار هندسي موثّق بصدق: كل عميل هنا كود حقيقي وكامل يستخدم SDK الرسمي لمزوّده،
-لكن تشغيله الفعلي يتطلب مفتاح API صالحًا ووصولًا شبكيًا لنطاق ذلك المزوّد. بيئة
-تطوير هذا المشروع تحديدًا مُقيَّدة شبكيًا بحيث لا تصل إلا إلى api.anthropic.com
-(انظر إعدادات الشبكة)؛ لا يمكنها الوصول إلى api.openai.com أو googleapis.com إطلاقًا،
-بغض النظر عن وجود مفتاح API. لذلك عميلا OpenAI وGoogle هنا **كود إنتاجي كامل وصحيح
-بنيويًا**، لكن لم يُتحقق منهما عبر نداء شبكي فعلي في هذه البيئة تحديدًا — فقط عبر
-حقن عميل SDK وهمي (نفس أسلوب اختبار AnthropicModelClient). أي بيئة تشغيل فعلية بلا
-هذا التقييد الشبكي المحدد يمكنها استخدامهما مباشرة بضبط مفتاح API المناسب فقط.
+This module supports Anthropic, OpenAI, and Google behind one interface, with
+tool-use invocation where a provider client implements it.
+
+Each client uses its provider's official SDK, but live invocation requires a
+valid API key and network access to that provider. In this development
+environment, network access is restricted: Anthropic is available, while
+OpenAI and Google live calls have not been verified here. The OpenAI and Google
+clients are nevertheless covered through injected SDK doubles, like the
+Anthropic client. A production environment with suitable network access may use
+them after setting the relevant API key.
 """
 from __future__ import annotations
 
@@ -31,18 +31,18 @@ logger = logging.getLogger("reus_veritas.model_client")
 
 
 class ModelInvocationError(Exception):
-    """تُرفع عند فشل استدعاء النموذج فعليًا (خطأ شبكة، مصادقة، أو استجابة API)."""
+    """Raised when a real model invocation fails because of network, authentication, or API errors."""
 
 
 class ToolUseNotSupported(Exception):
     def __init__(self, provider: str):
-        super().__init__(f"المزوّد '{provider}' لا يدعم Tool Use في هذا التطبيق حاليًا")
+        super().__init__(f"Provider '{provider}' does not support tool use in this application yet")
 
 
 class ModelClient(ABC):
     @abstractmethod
     def invoke(self, model_id: str, prompt: str, max_tokens: int = 1024) -> str:
-        """يستدعي النموذج ويُعيد النص المُولَّد، أو يرفع ModelInvocationError."""
+        """Invoke a model and return generated text, or raise ModelInvocationError."""
         ...
 
     def invoke_with_tools(
@@ -54,18 +54,16 @@ class ModelClient(ABC):
         max_tokens: int = 1024,
         max_iterations: int = 5,
     ) -> str:
-        """
-        استدعاء بحلقة أدوات كاملة (Agentic Loop): يستدعي النموذج، وإن طلب استخدام
-        أداة ينفّذها فعليًا عبر tool_dispatcher ثم يُعيد النتيجة للنموذج، ويكرر
-        حتى يُنتج ردًا نصيًا نهائيًا أو يبلغ max_iterations. التطبيق الافتراضي
-        يرفع ToolUseNotSupported؛ فقط العملاء الذين يطبّقونه فعليًا يدعمونه.
-        """
+        """Run a complete tool loop: invoke the model; when it requests a tool,
+        execute it through tool_dispatcher; then return the result to the model
+        until it produces final text or reaches max_iterations. The base method
+        raises ToolUseNotSupported; only concrete implementations support it."""
         raise ToolUseNotSupported(self.__class__.__name__)
 
 
 class AnthropicModelClient(ModelClient):
     def __init__(self, api_key: str, client: anthropic.Anthropic | None = None) -> None:
-        # السماح بحقن client يتيح اختبار المنطق بالكامل دون مفتاح API حقيقي أو شبكة.
+        # Client injection enables complete tests without a real API key or network.
         self._client = client or anthropic.Anthropic(api_key=api_key)
 
     def invoke(self, model_id: str, prompt: str, max_tokens: int = 1024) -> str:
@@ -76,7 +74,7 @@ class AnthropicModelClient(ModelClient):
                 messages=[{"role": "user", "content": prompt}],
             )
         except anthropic.APIError as exc:
-            raise ModelInvocationError(f"فشل استدعاء النموذج '{model_id}': {exc}") from exc
+            raise ModelInvocationError(f"Model invocation failed for '{model_id}': {exc}") from exc
 
         return self._extract_text(response, model_id)
 
@@ -97,7 +95,7 @@ class AnthropicModelClient(ModelClient):
                     model=model_id, max_tokens=max_tokens, messages=messages, tools=tools
                 )
             except anthropic.APIError as exc:
-                raise ModelInvocationError(f"فشل استدعاء النموذج '{model_id}': {exc}") from exc
+                raise ModelInvocationError(f"Model invocation failed for '{model_id}': {exc}") from exc
 
             if response.stop_reason != "tool_use":
                 return self._extract_text(response, model_id)
@@ -117,27 +115,25 @@ class AnthropicModelClient(ModelClient):
             messages.append({"role": "user", "content": tool_results})
 
         raise ModelInvocationError(
-            f"تجاوز النموذج '{model_id}' الحد الأقصى لتكرارات استخدام الأدوات ({max_iterations}) دون رد نهائي"
+            f"Model '{model_id}' exceeded the maximum tool-use iterations ({max_iterations}) without final text"
         )
 
     @staticmethod
     def _extract_text(response: Any, model_id: str) -> str:
         text_blocks = [block.text for block in response.content if getattr(block, "type", None) == "text"]
         if not text_blocks:
-            raise ModelInvocationError(f"لم يُعِد النموذج '{model_id}' أي محتوى نصي")
+            raise ModelInvocationError(f"Model '{model_id}' returned no text content")
         return "".join(text_blocks)
 
 
 class OpenAIModelClient(ModelClient):
-    """
-    عميل حقيقي وكامل عبر SDK الرسمي لـ OpenAI. راجع ملاحظة الصدق أعلى الملف بخصوص
-    قيود الشبكة في هذه البيئة تحديدًا.
-    """
+    """OpenAI client using the official SDK; see the module note on this
+    environment's live-network verification boundary."""
 
     def __init__(self, api_key: str, client: Any = None) -> None:
         self._api_key = api_key
         self._injected_client = client
-        self._client: Any = None  # يُبنى كسوليًا (Lazy) عند أول استخدام فعلي فقط
+        self._client: Any = None  # Construct lazily at the first real use.
 
     def _get_client(self) -> Any:
         if self._injected_client is not None:
@@ -158,20 +154,21 @@ class OpenAIModelClient(ModelClient):
                 messages=[{"role": "user", "content": prompt}],
             )
         except openai_module.APIError as exc:
-            raise ModelInvocationError(f"فشل استدعاء النموذج '{model_id}': {exc}") from exc
+            raise ModelInvocationError(f"Model invocation failed for '{model_id}': {exc}") from exc
 
         choice = response.choices[0] if response.choices else None
         content = getattr(getattr(choice, "message", None), "content", None) if choice else None
         if not content:
-            raise ModelInvocationError(f"لم يُعِد النموذج '{model_id}' أي محتوى نصي")
+            raise ModelInvocationError(f"Model '{model_id}' returned no text content")
         return content
 
 
 class KimiModelClient(OpenAIModelClient):
-    """عميل Kimi عبر واجهته الرسمية المتوافقة مع OpenAI.
+    """Kimi client through its official OpenAI-compatible interface.
 
-    لا يمنح هذا العميل Kimi أي صلاحيات أدوات أو تنفيذ محلي؛ يقتصر دوره على
-    توليد النص عندما يفعّل المطور المزود صراحة ضمن مسار النماذج الثانوية.
+    This client grants Kimi no tool or local-execution capability. It generates
+    text only when a developer explicitly enables the provider as a secondary
+    model path.
     """
 
     def __init__(self, api_key: str, base_url: str, client: Any = None) -> None:
@@ -189,15 +186,13 @@ class KimiModelClient(OpenAIModelClient):
 
 
 class GoogleModelClient(ModelClient):
-    """
-    عميل حقيقي وكامل عبر SDK الرسمي لـ Google (google-genai، عائلة نماذج Gemini).
-    راجع ملاحظة الصدق أعلى الملف بخصوص قيود الشبكة في هذه البيئة تحديدًا.
-    """
+    """Google client using the official google-genai SDK for Gemini models;
+    see the module note on this environment's live-network verification boundary."""
 
     def __init__(self, api_key: str, client: Any = None) -> None:
         self._api_key = api_key
         self._injected_client = client
-        self._client: Any = None  # يُبنى كسوليًا (Lazy) عند أول استخدام فعلي فقط
+        self._client: Any = None  # Construct lazily at the first real use.
 
     def _get_client(self) -> Any:
         if self._injected_client is not None:
@@ -215,10 +210,10 @@ class GoogleModelClient(ModelClient):
                 contents=prompt,
                 config={"max_output_tokens": max_tokens},
             )
-        except Exception as exc:  # مكتبة google-genai لا تُصدّر تسلسل استثناءات موحّدًا واحدًا فقط
-            raise ModelInvocationError(f"فشل استدعاء النموذج '{model_id}': {exc}") from exc
+        except Exception as exc:  # google-genai does not expose one stable exception hierarchy.
+            raise ModelInvocationError(f"Model invocation failed for '{model_id}': {exc}") from exc
 
         text = getattr(response, "text", None)
         if not text:
-            raise ModelInvocationError(f"لم يُعِد النموذج '{model_id}' أي محتوى نصي")
+            raise ModelInvocationError(f"Model '{model_id}' returned no text content")
         return text
