@@ -8,7 +8,7 @@ Architecture: Veritas AI
 
 SandboxedExecutor — runs a single task in an isolated OS process with a
 hard memory ceiling and a wall-clock timeout, per master architecture doc
-section 2.2 ("تنفيذ المهام في بيئة معزولة") and the vision doc's Security
+section 2.2 (executing tasks in an isolated environment) and the vision doc's Security
 principle of containing failures.
 
 Design decision: multiprocessing.Process (not threads, not asyncio) was
