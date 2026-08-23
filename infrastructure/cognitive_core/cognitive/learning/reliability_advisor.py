@@ -6,8 +6,8 @@ Contact: Contact@reulink.app
 Copyright: © Lotfi Mahiddine
 Architecture: Veritas AI
 
-ReliabilityAdvisor — step 11 of the cognitive cycle ("تحسين أسلوب التفكير
-للمستقبل"). Reads the reliability knowledge KnowledgeExtractor wrote into
+ReliabilityAdvisor — step 11 of the cognitive cycle (improving future
+reasoning). Reads the reliability knowledge KnowledgeExtractor wrote into
 Semantic Memory and turns it into a score adjustment that biases future
 plan selection (see cognitive/plan.py's select_best_plan `score_adjustment`
 parameter) — without ever touching a capability's own declared cost/risk.
