@@ -70,7 +70,7 @@ def test_issue_and_list_tokens(client: TestClient):
     listing = client.get(f"/agents/{agent_id}/tokens", headers=HEADERS)
     assert listing.status_code == 200
     assert len(listing.json()) == 1
-    assert "plaintext" not in listing.json()[0]  # لا يظهر النص الصافي في السرد أبدًا
+    assert "plaintext" not in listing.json()[0]  # Plaintext is never returned in a listing.
     assert "token_hash" not in listing.json()[0]
 
 
@@ -198,7 +198,7 @@ def test_token_without_explicit_scopes_inherits_full_permissions(client: TestCli
 
 
 def test_master_key_bypasses_scope_restrictions_entirely(client: TestClient):
-    """المفتاح الرئيسي لا يتأثر بأي نطاق رمز؛ صلاحية إدارية كاملة دائمًا."""
+    """The master key is unaffected by token scopes and always has full administrative access."""
     agent_id = _register_agent(client, permissions=["read:memory", "write:memory"])
     resp = client.post(
         f"/agents/{agent_id}/memory", json={"content": "عبر المفتاح الرئيسي", "tags": []}, headers=HEADERS
