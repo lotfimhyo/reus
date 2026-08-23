@@ -51,15 +51,13 @@ class CloudTelegramCommands:
         seed_bootstrap_url_provider=None,
         manager_holder=None,
     ):
-        """`provider_factory(provider_name) -> CloudProvider` — يُستبدَل فقط
-        في الاختبارات (لتوجيه DigitalOceanProvider نحو خادم وهمي).
-        `seed_bootstrap_url_provider() -> str | None` — دالة اختيارية تُعيد
-        عنوان بوابة تمهيد عقدة منسِّقة موجودة (إن وُجدت) لضم العقدة السحابية
-        الجديدة تلقائيًا للعنقود عند إقلاعها. `None`/غير مزوَّدة يعني: عقدة
-        مستقلة بلا انضمام تلقائي — يبقى ممكنًا لاحقًا يدويًا.
-        `manager_holder` — صندوق مشترك اختياري (`CloudManagerHolder`) يُملأ
-        فور نجاح /configure_cloud، ليصبح المدير مرئيًا خارج تلغرام أيضًا
-        (مسار /nodes في لوحة التحكم تحديدًا) دون تكرار الحالة."""
+        """`provider_factory(provider_name) -> CloudProvider` is replaced only
+        in tests. `seed_bootstrap_url_provider()` optionally returns an existing
+        coordinator bootstrap address so a new cloud node can join at startup;
+        absent it, the node remains independent until manually joined.
+        `manager_holder` optionally exposes the configured manager outside
+        Telegram, including the control-plane `/nodes` route, without duplicating
+        state."""
         self._service = service
         self._manager: Optional[CloudDeploymentManager] = None
         self._provider_factory = provider_factory or (lambda name: _PROVIDERS[name]())
@@ -194,14 +192,14 @@ class CloudTelegramCommands:
 
     def _cmd_list(self, chat_id: str, args: str) -> None:
         if not self._manager:
-            self._send(chat_id, "السحابة غير مضبوطة بعد.")
+            self._send(chat_id, "Cloud is not configured yet.")
             return
         instances = self._manager.list_instances()
         if not instances:
-            self._send(chat_id, "لا توجد عقد سحابية.")
+            self._send(chat_id, "No cloud nodes exist.")
             return
         lines = [
-            f"{i.name} ({i.id}): {i.status}، {i.ip_address or 'بلا IP بعد'}، ${i.monthly_cost_usd:.2f}/شهر"
+            f"{i.name} ({i.id}): {i.status}, {i.ip_address or 'no IP yet'}, ${i.monthly_cost_usd:.2f}/month"
             for i in instances
         ]
         self._send(chat_id, "\n".join(lines))
@@ -209,26 +207,26 @@ class CloudTelegramCommands:
     def _cmd_destroy(self, chat_id: str, args: str) -> None:
         instance_id = args.strip()
         if not instance_id:
-            self._send(chat_id, "الاستخدام: /destroy_node <instance_id>")
+            self._send(chat_id, "Usage: /destroy_node <instance_id>")
             return
         if not self._manager:
-            self._send(chat_id, "السحابة غير مضبوطة بعد.")
+            self._send(chat_id, "Cloud is not configured yet.")
             return
 
         approval_id = f"destroy-{uuid.uuid4().hex[:8]}"
         self._service.request_approval(
             chat_id,
             approval_id,
-            f"حذف العقدة {instance_id}؟ هذا الإجراء لا رجعة فيه.",
+            f"Delete node {instance_id}? This action is irreversible.",
             on_approve=lambda: self._execute_destroy(chat_id, instance_id),
-            on_reject=lambda: self._send(chat_id, f"أُلغي حذف {instance_id}."),
+            on_reject=lambda: self._send(chat_id, f"Deletion of {instance_id} was cancelled."),
         )
 
     def _execute_destroy(self, chat_id: str, instance_id: str) -> None:
         try:
             self._manager.destroy_instance(instance_id)
             self._publish("cloud.instance_destroyed", {"instance_id": instance_id})
-            self._send(chat_id, f"تم حذف العقدة {instance_id}.")
+            self._send(chat_id, f"Node {instance_id} was deleted.")
         except Exception as e:  # noqa: BLE001
             self._publish("cloud.destroy_failed", {"instance_id": instance_id, "error": str(e)})
-            self._send(chat_id, f"فشل الحذف: {e}")
+            self._send(chat_id, f"Deletion failed: {e}")
