@@ -11,7 +11,8 @@ from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 
-# يسمح باستيراد حزم المشروع (config, infrastructure) عند تشغيل alembic من جذر المشروع
+# Allows project packages (config, infrastructure) to be imported when Alembic
+# runs from the project root.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config import get_settings  # noqa: E402
@@ -22,8 +23,9 @@ from infrastructure.postgres.session import Base  # noqa: E402
 # access to the values within the .ini file in use.
 config = context.config
 
-# رابط الاتصال يأتي من REUS_DATABASE_URL (نفس مصدر الحقيقة الوحيد الذي يستخدمه التطبيق نفسه)
-# بدل قيمة ثابتة في alembic.ini، حتى لا يتكرر ضبط بيانات الاتصال في مكانين مختلفين.
+# The connection URL comes from REUS_DATABASE_URL, the same single source of
+# truth used by the application, rather than a fixed alembic.ini value. This
+# prevents connection settings from being duplicated in two different places.
 config.set_main_option("sqlalchemy.url", get_settings().database_url)
 
 # Interpret the config file for Python logging.
@@ -31,7 +33,8 @@ config.set_main_option("sqlalchemy.url", get_settings().database_url)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# metadata النماذج الفعلية، لدعم autogenerate بدقة (وليس None كما في القالب الافتراضي)
+# Actual model metadata, enabling precise autogeneration rather than the None
+# used by Alembic's default template.
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
