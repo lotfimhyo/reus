@@ -53,7 +53,7 @@ def test_authenticate_valid_token_returns_matching_agent(token_service: AgentTok
 
     assert authenticated is not None
     assert authenticated.agent_id == agent.agent_id
-    assert authenticated.last_used_at is not None  # تُسجَّل لحظة الاستخدام
+    assert authenticated.last_used_at is not None  # Records the time of use.
 
 
 def test_authenticate_unknown_token_returns_none(token_service: AgentTokenService):
@@ -133,13 +133,13 @@ def test_get_effective_scopes_intersects_with_live_agent_permissions(
     agent = agent_service.register_agent(
         RegisterAgentCommand(name="a", permissions={"read:memory", "write:memory"}, goals=[])
     )
-    issued = token_service.issue_token(agent.agent_id)  # يرث الصلاحيتين معًا وقت الإصدار
+    issued = token_service.issue_token(agent.agent_id)  # Inherits both permissions at issuance time.
 
-    # تقليص صلاحيات الوكيل لاحقًا (مباشرة عبر المستودع، يحاكي أي آلية إدارية مستقبلية)
+    # Reduce the agent's permissions later (directly through the repository, simulating a future administration flow).
     live_agent = agent_repo.get(agent.agent_id)
     live_agent.permissions = {"read:memory"}
     agent_repo.update(live_agent)
 
     effective = token_service.get_effective_scopes(issued.token)
 
-    assert effective == frozenset({"read:memory"})  # write:memory لم تعد فعلية رغم بقائها في scopes المخزَّنة
+    assert effective == frozenset({"read:memory"})  # write:memory is no longer effective even though it remains stored in scopes.
