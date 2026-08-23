@@ -1,0 +1,21 @@
+# Project: Reus | Founder: Lotfi Mahiddine | Organization: Reulink
+cff-version: 1.2.0
+message: "If you use Reus in non-commercial research, education, or evaluation, please cite it as below."
+title: "Reus: A Local-First, Human-Governed Distributed AI System"
+authors:
+  - family-names: Mahiddine
+    given-names: Lotfi
+    affiliation: Reulink
+version: "0.1.0-community"
+date-released: 2026-08-23
+url: "https://github.com/lotfimhyo/reus"
+repository-code: "https://github.com/lotfimhyo/reus"
+abstract: "Reus is a local-first, human-governed distributed AI system with optional cluster coordination, auditable approvals, and explicit operational boundaries."
+license: "Reulink Non-Commercial Community License 1.0"
+keywords:
+  - local-first AI
+  - distributed systems
+  - human-in-the-loop
+  - Raft consensus
+  - mTLS
+  - Reulink
