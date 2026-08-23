@@ -4,10 +4,10 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-يحقن عميل Ollama وهميًا فقط (لعدم توفر خادم Ollama حقيقي في بيئة الاختبار
-هذه — نفس قيد باقي هذا المشروع)؛ كل شيء آخر — منطق السقوط التلقائي، نشر
-الحدث، التمييز بين فشل بلا سقوط وفشل مع سقوط، ودمج بيانات السقوط في النتيجة
-— حقيقي فعليًا ومُختبَر مباشرة.
+Injects only a fake Ollama client because no live Ollama server is available
+in this test environment. Everything else is exercised directly: automatic
+fallback logic, event publication, the distinction between failures with and
+without fallback, and merging fallback data into the result.
 
 Run: `python3 -m unittest tests.test_ollama_task_executor -v`
 """
@@ -59,7 +59,7 @@ class TestOllamaTaskExecutor(unittest.TestCase):
         result = executor.execute(task)
 
         self.assertEqual(result, {"model_used": "llama3.1", "provider": "ollama", "response": "مرحبًا"})
-        self.assertEqual(len(fallback.executed_tasks), 0)  # لم يُستدعَ السقوط إطلاقًا
+        self.assertEqual(len(fallback.executed_tasks), 0)  # Fallback was never called.
 
     def test_missing_prompt_raises_without_touching_ollama_or_fallback(self):
         client = _FakeOllamaClient()
