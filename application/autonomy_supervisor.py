@@ -4,9 +4,11 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-مشرف الاستقلالية: يربط دورة الإدراك بمصنع الوكلاء والحوكمة. لا ينفذ ترقية
-لقدرة جديدة لمجرد أن النموذج اقترحها؛ كل قدرة تمر بالتصميم والتحليل الساكن
-والعزل، ثم تصبح اقتراحاً قابلاً للمراجعة أو ترقية منخفضة المخاطر صريحة.
+Autonomy supervisor connecting the cognitive cycle to the agent factory and
+governance. A proposed capability is never promoted merely because a model
+suggested it: every capability undergoes design, static analysis, and sandbox
+validation before becoming a reviewable proposal or an explicit low-risk
+promotion.
 """
 
 from __future__ import annotations
@@ -25,13 +27,15 @@ from infrastructure.cognitive_core.cognitive.goal import Goal
 
 
 class AgentDesignProvider(Protocol):
-    """مزود محلي يحول فجوة قدرة إلى مواصفة قابلة للاختبار، لا إلى كود موثوق."""
+    """Local provider that turns a capability gap into a testable specification,
+    not trusted code."""
 
     def design(self, goal: Goal) -> GeneratedAgentDraft: ...
 
 
 class GovernanceLedger(Protocol):
-    """منفذ تخزين الاقتراحات، يمكن ربطه بقاعدة محلية أو بسجل تشغيل خارجي."""
+    """Proposal storage port that can connect to a local database or an external
+    operations ledger."""
 
     def record(self, proposal: ImprovementProposal) -> None: ...
 
@@ -52,7 +56,8 @@ class AutonomyOutcome:
 
 
 class AutonomySupervisor:
-    """ينفذ الهدف أو يحول فجوة القدرة إلى اقتراح توسعة محكوم."""
+    """Execute a goal or turn a proven capability gap into a governed expansion
+    proposal."""
 
     def __init__(
         self,
@@ -73,7 +78,8 @@ class AutonomySupervisor:
         self._build_artifacts: dict[str, BuildResult] = {}
 
     def pursue(self, goal: Goal, executor: Executor) -> AutonomyOutcome:
-        """شغّل الهدف، وصمم مسودة وكيل فقط إذا برهنت دورة الإدراك غياب القدرة."""
+        """Run a goal and design an agent draft only when the cognitive cycle
+        proves the required capability is absent."""
         try:
             return AutonomyOutcome(state="executed", cycle=self._engine.run(goal, executor))
         except NoCapabilityFoundError:
@@ -99,7 +105,8 @@ class AutonomySupervisor:
         return AutonomyOutcome(state="proposal_created", proposal=proposal)
 
     def approve(self, proposal_id: str, reviewer_note: str | None = None) -> ImprovementProposal:
-        """انشر قدرة اجتازت العزل بعد قرار صريح من المطور أو سياسة منخفضة المخاطر."""
+        """Publish a sandbox-approved capability after an explicit developer
+        decision or an allowed low-risk policy decision."""
         proposal = self._governance.get(proposal_id)
         if proposal.status is not ProposalStatus.PENDING:
             raise ValueError("only pending proposals may be approved")
