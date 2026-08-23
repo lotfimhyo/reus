@@ -4,7 +4,7 @@
 # Contact: Contact@reulink.app
 
 """
-اختبارات AWSSecretsManagerProvider عبر حقن عميل boto3 وهمي.
+AWSSecretsManagerProvider tests using an injected fake boto3 client.
 """
 from __future__ import annotations
 
