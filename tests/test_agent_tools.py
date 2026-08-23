@@ -73,8 +73,9 @@ def test_search_memory_tool_finds_stored_content(agent_service, memory_service):
 
 def test_store_memory_tool_without_permission_returns_error_not_exception(agent_service, memory_service):
     """
-    مهم: الأداة تُعيد رسالة خطأ داخل النتيجة (ليكتشفها النموذج ويتصرف)، بدل رفع
-    استثناء يُفشل حلقة الأدوات بالكامل — سلوك متعمَّد وليس تجاهلًا للصلاحيات.
+    Important: the tool returns an error message in the result so the model can
+    detect and handle it, rather than raising an exception that fails the whole
+    tool loop. This is deliberate behavior, not an authorization bypass.
     """
     agent = agent_service.register_agent(
         RegisterAgentCommand(name="read-only-agent", permissions={"read:memory"}, goals=[])
@@ -92,7 +93,7 @@ def test_search_memory_tool_for_unknown_agent_returns_error(memory_service):
     assert "error" in result
 
 
-# ---------- أدوات التعاون (create_task, list_agents) ----------
+# ---------- Collaboration tools (create_task, list_agents) ----------
 
 
 @pytest.fixture
@@ -106,7 +107,7 @@ def orchestrator(agent_repo, event_bus) -> OrchestratorService:
 
 
 def test_collaboration_tools_unavailable_without_orchestrator(agent_service, memory_service):
-    """بلا orchestrator/agent_repo، تبقى الأداتان غير معروفتين عمدًا (لا يُفترض وجودهما ضمنيًا)."""
+    """Without orchestrator/agent_repo, both tools intentionally remain unknown; they are not implicitly assumed."""
     agent = agent_service.register_agent(RegisterAgentCommand(name="a", permissions={"spawn:subagent"}, goals=[]))
     executor = AgentToolExecutor(memory_service=memory_service, agent_id=agent.agent_id)
 
