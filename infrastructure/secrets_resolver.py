@@ -4,9 +4,10 @@
 # Contact: Contact@reulink.app
 
 """
-secrets_resolver: يفصل config.py عن أي اعتمادية ثقيلة (hvac, boto3) — هذه
-الوحدة تُستورد فقط عند تفعيل REUS_SECRETS_BACKEND صراحة، وليس عند كل استيراد
-لـ config.py (نفس درس البناء الكسول من عملاء OpenAI/Google/Vault/AWS سابقًا).
+secrets_resolver keeps config.py independent of heavier dependencies such as
+hvac and boto3. This module is imported only when REUS_SECRETS_BACKEND is
+explicitly enabled, not whenever config.py loads, following the same lazy-
+construction approach as other optional provider clients.
 """
 from __future__ import annotations
 
@@ -16,8 +17,9 @@ from infrastructure.secrets_provider import SecretsProvider
 
 logger = logging.getLogger("reus_veritas.secrets")
 
-# الحقول الحساسة الوحيدة القابلة للاستبدال من مزوّد أسرار خارجي. أي حقل تشغيلي
-# غير حساس (مثل worker_pool_size أو storage_backend) يبقى دائمًا من متغيرات البيئة.
+# Only sensitive fields can be overridden by an external secrets provider.
+# Non-sensitive operational fields such as worker_pool_size or storage_backend
+# always remain sourced from environment configuration.
 SECRET_FIELDS = [
     "api_key",
     "anthropic_api_key",
@@ -44,15 +46,13 @@ def _build_provider(settings) -> SecretsProvider:
         return AWSSecretsManagerProvider(
             region_name=settings.secrets_aws_region, secret_id=settings.secrets_aws_secret_id
         )
-    raise ValueError(f"مزوّد أسرار غير مدعوم: '{settings.secrets_backend}'")
+    raise ValueError(f"Unsupported secrets backend: '{settings.secrets_backend}'")
 
 
 def resolve_secrets(settings):
-    """
-    يُعيد نسخة من settings بعد استبدال كل حقل في SECRET_FIELDS بقيمته من مزوّد
-    الأسرار الخارجي إن وُجدت. الحقول غير الموجودة في المزوّد تبقى بقيمتها الأصلية
-    (من متغيرات البيئة/.env) — لا صمت كامل ولا فشل كامل، استبدال جزئي معقول.
-    """
+    """Return a settings copy whose SECRET_FIELDS values are overridden by an
+    external provider when available. Fields absent from the provider retain
+    their environment or .env values, enabling deliberate partial overrides."""
     provider = _build_provider(settings)
     overrides: dict[str, str] = {}
     for field in SECRET_FIELDS:
