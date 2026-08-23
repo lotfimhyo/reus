@@ -4,9 +4,10 @@
 # Contact: Contact@reulink.app
 
 """
-تطبيق In-Memory لمستودع الوكلاء. Thread-safe عبر قفل RLock.
-هذا التطبيق مؤقت بتصميمه: أي محرك تخزين آخر (PostgreSQL, Redis) يمكن أن
-يحل محله فورًا لأنه يلتزم بواجهة AgentRepository فقط (Liskov Substitution).
+In-memory implementation of the agent repository. It is thread-safe through
+an RLock. This implementation is deliberately replaceable: another storage
+engine such as optional PostgreSQL or Redis can substitute it by implementing
+the AgentRepository interface (Liskov substitution).
 """
 from __future__ import annotations
 
