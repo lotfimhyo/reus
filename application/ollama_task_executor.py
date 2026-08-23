@@ -4,23 +4,20 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-OllamaTaskExecutor — منفّذ المهام الأساسي المطلوب صراحةً: "استدعاء النماذج
-المحلية Ollama... مع دعم نماذج API ثانوية". حتى هذه الجلسة، لم يكن يوجد أي
-مسار تنفيذ مهام حقيقي يستدعي Ollama مباشرةً للإجابة على مهمة — `OllamaClient`
-كان مربوطًا فقط بكتابة كود القدرات (`OllamaSynthesizer`)، لا بالإجابة على
-مهام مستخدم فعلية. هذا الملف يسدّ تلك الفجوة تحديدًا.
+OllamaTaskExecutor is the local-model task execution path. It fills the gap
+between an `OllamaClient` used only for capability-code synthesis and an
+executor that can answer actual user tasks.
 
-**العلاقة بـModelRoutingExecutor (النماذج الثانوية):** Ollama هو المسار
-الأساسي دائمًا. `ModelRoutingExecutor` (Anthropic/OpenAI/Google) لا يُستدعى
-إلا كسقوط تلقائي حقيقي (fallback) عند فشل الوصول لخادم Ollama نفسه
-(`OllamaError` — خادم غير مُشغَّل، أو نموذج غير مسحوب محليًا) — وليس كمسار
-مستقل يُختار يدويًا كما كان الوضع سابقًا (`REUS_TASK_EXECUTOR=model_router`
-يبقى متاحًا كخيار منفصل لمن يريد النماذج الثانوية حصرًا بلا Ollama إطلاقًا).
+**Relationship to ModelRoutingExecutor:** Ollama remains the primary route.
+`ModelRoutingExecutor` for secondary API models is used only as a genuine
+fallback after an `OllamaError`, such as an unavailable server or a model that
+has not been pulled locally. Operators can instead choose
+`REUS_TASK_EXECUTOR=model_router` explicitly when they want secondary models
+without Ollama.
 
-كل سقوط فعلي (لا كل استدعاء ناجح) يُنشَر على EventBus
-(`task.ollama_fallback_used`) — شفافية تشغيلية: يجب أن يكون واضحًا متى
-"يتعطّل" النموذج المحلي فعليًا ويُستبدَل مؤقتًا بنموذج API، لا أن يحدث ذلك
-بصمت.
+Every actual fallback, but never a successful Ollama call, publishes the
+`task.ollama_fallback_used` event. A local-model outage and temporary API-model
+replacement must be observable rather than silent.
 """
 from __future__ import annotations
 
@@ -44,17 +41,15 @@ class OllamaTaskExecutor(TaskExecutor):
         event_bus: Optional[EventBus] = None,
         active_model_store: Optional[ActiveModelStore] = None,
     ) -> None:
-        """`fallback_executor` هو عادة `ModelRoutingExecutor` (نماذج API
-        ثانوية) — لكن أي `TaskExecutor` آخر صالح أيضًا (بنية قابلة للاستبدال،
-        لا اعتماد مباشر على أي مزوّد بعينه). `None` يعني: لا سقوط تلقائي،
-        فشل Ollama يفشل المهمة مباشرة — خيار صريح لمن يريد Ollama حصرًا.
+        """`fallback_executor` is usually `ModelRoutingExecutor` for secondary
+        API models, but any `TaskExecutor` is valid. `None` disables automatic
+        fallback so an Ollama failure fails the task directly.
 
-        `active_model_store`: إن زُوِّد، يُستشار عند **كل** استدعاء (لا
-        عند البناء فقط) لتحديد اسم النموذج الفعلي — هذا ما يجعل قرار
-        `ModelPromotionService` (ترقية للنموذج المتطوّر أو التراجع عنها)
-        يسري فورًا على أول مهمة تالية، دون إعادة تشغيل هذا المنفّذ أو
-        إعادة بناء `OllamaClient`. `None` يعني: استخدم `client.model` الثابت
-        دائمًا — خيار صريح لمن لا يريد الترقية إطلاقًا."""
+        When supplied, `active_model_store` is consulted for every invocation,
+        not only at construction. A promotion or rollback therefore applies to
+        the next task without restarting this executor or rebuilding the
+        `OllamaClient`. `None` always uses the static `client.model`.
+        """
         self._client = client
         self._fallback = fallback_executor
         self._bus = event_bus
@@ -63,7 +58,7 @@ class OllamaTaskExecutor(TaskExecutor):
     def execute(self, task: TaskNode) -> Any:
         prompt = task.payload.get("prompt")
         if not prompt:
-            raise TaskExecutionError(f"المهمة '{task.name}' بلا 'prompt' في payload؛ لا يمكن توجيهها إلى نموذج")
+            raise TaskExecutionError(f"Task '{task.name}' has no payload prompt and cannot be routed to a model.")
 
         system = task.payload.get("system")
         json_mode = task.payload.get("json_mode", False)
@@ -83,7 +78,7 @@ class OllamaTaskExecutor(TaskExecutor):
     def _fallback_or_raise(self, task: TaskNode, original_error: OllamaError) -> Any:
         if self._fallback is None:
             raise TaskExecutionError(
-                f"تعذّر الوصول لـ Ollama ولا يوجد منفّذ سقوط تلقائي مُهيَّأ: {original_error}"
+                f"Ollama is unavailable and no fallback executor is configured: {original_error}"
             ) from original_error
 
         logger.warning("ollama_unreachable_falling_back", extra={"task_name": task.name, "error": str(original_error)})
@@ -95,11 +90,11 @@ class OllamaTaskExecutor(TaskExecutor):
             result = self._fallback.execute(task)
         except TaskExecutionError as exc:
             raise TaskExecutionError(
-                f"تعذّر الوصول لـ Ollama ({original_error})، وفشل منفّذ السقوط التلقائي أيضًا: {exc}"
+                f"Ollama is unavailable ({original_error}) and the fallback executor also failed: {exc}"
             ) from exc
-        except Exception as exc:  # أي خطأ آخر غير متوقَّع من منفّذ السقوط — لا نبتلعه
+        except Exception as exc:  # Do not swallow unexpected fallback-executor errors.
             raise TaskExecutionError(
-                f"تعذّر الوصول لـ Ollama ({original_error})، وفشل منفّذ السقوط التلقائي أيضًا: {exc}"
+                f"Ollama is unavailable ({original_error}) and the fallback executor also failed: {exc}"
             ) from exc
 
         if isinstance(result, dict):

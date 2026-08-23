@@ -103,7 +103,7 @@ class TestOllamaTaskExecutor(unittest.TestCase):
         task = TaskNode(name="t5", payload={"prompt": "hello"})
         with self.assertRaises(TaskExecutionError) as ctx:
             executor.execute(task)
-        self.assertIn("فشل منفّذ السقوط", str(ctx.exception))
+        self.assertIn("fallback executor also failed", str(ctx.exception))
 
 
 if __name__ == "__main__":
