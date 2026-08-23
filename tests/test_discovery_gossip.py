@@ -4,10 +4,11 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-أول اختبارات لـ DiscoveryService._gossip_round (infrastructure/cluster_network/
-discovery.py) — كانت 0% مغطاة. تُختبَر عبر محاكاة العقدة (node) وTrustStore
-والعميل، بلا مقابس شبكية حقيقية، لأن المنطق المُختبَر هنا هو قواعد النميمة
-(gossip) نفسها (من يُضاف، من يُتجاهَل، متى يُحفَظ) لا طبقة النقل.
+First tests for DiscoveryService._gossip_round
+(infrastructure/cluster_network/discovery.py), which previously had 0%
+coverage. They mock the node, TrustStore, and client with no real network
+sockets because the logic under test is the gossip policy itself—who is added,
+who is ignored, and when state is saved—not the transport layer.
 """
 from __future__ import annotations
 
@@ -38,7 +39,7 @@ class TestGossipRound(unittest.TestCase):
         node._client.get_peers.side_effect = ConnectionError("unreachable")
         service = DiscoveryService(node)
 
-        service._gossip_round()  # يجب ألا يرمي استثناءً للخارج
+        service._gossip_round()  # Must not leak an exception.
 
         node.trust_store.add_peer.assert_not_called()
 
@@ -116,8 +117,8 @@ class TestGossipRound(unittest.TestCase):
         node.trust_store.add_peer.assert_not_called()
 
     def test_skips_save_and_rebuild_when_nothing_new_learned(self):
-        """تحسين أداء موجود بالفعل في الكود: لا تُعاد الكتابة وإعادة بناء
-        حزمة الثقة بلا حاجة إن لم تُضَف أي عقدة جديدة فعليًا."""
+        """Existing performance optimization: avoid writing and rebuilding the
+        trust bundle when no genuinely new node was added."""
         node = self._make_node(known_peers={"peer-a": {"host": "10.0.0.1", "port": 9000}})
         node._client.get_peers.return_value = {"peers": {}}
         service = DiscoveryService(node)
