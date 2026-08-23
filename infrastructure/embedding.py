@@ -4,16 +4,13 @@
 # Contact: Contact@reulink.app
 
 """
-Embedder Port: يحوّل نصًا إلى متجه رقمي (Embedding) لتمكين البحث الدلالي.
+Embedder port: converts text to a numeric embedding for semantic search.
 
-قرار هندسي مهم (موثّق بصدق):
-هذه البيئة الحالية لا تملك وصولًا شبكيًا لتحميل نماذج جاهزة (مثل Hugging Face)،
-لذلك التطبيق الافتراضي هنا هو HashingEmbedder: تقنية "Feature Hashing"
-(تُستخدم إنتاجيًا في أنظمة مثل Vowpal Wabbit) تعمل محليًا بالكامل دون أي نموذج خارجي.
-
-بما أن Embedder واجهة مجردة، يمكن استبدالها لاحقًا بـ SentenceTransformerEmbedder
-(sentence-transformers + نموذج محمّل مسبقًا) بتغيير سطر واحد في container.py،
-دون أي تعديل على طبقتي Domain أو Application.
+The current environment does not download pre-trained models, so the default is
+HashingEmbedder. Feature hashing provides fully local embeddings without an
+external model. Because Embedder is an abstract interface, a preloaded
+SentenceTransformerEmbedder can later replace it through container.py without
+changing domain or application layers.
 """
 from __future__ import annotations
 
@@ -23,7 +20,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-_TOKEN_RE = re.compile(r"[\w\u0600-\u06FF]+", re.UNICODE)  # يدعم العربية والإنجليزية
+_TOKEN_RE = re.compile(r"[\w\u0600-\u06FF]+", re.UNICODE)  # Supports Arabic and English tokens.
 
 
 class Embedder(ABC):
@@ -36,7 +33,8 @@ class Embedder(ABC):
 class HashingEmbedder(Embedder):
     """
     Bag-of-Words + Feature Hashing + TF-weighting + L2 Normalization.
-    حتمي تمامًا (نفس النص ينتج دائمًا نفس المتجه)، ولا يحتاج تدريبًا أو تحميل نموذج.
+    Fully deterministic: identical text always produces the same vector, with
+    no training or model download required.
     """
 
     def __init__(self, dimension: int = 384) -> None:
@@ -53,7 +51,7 @@ class HashingEmbedder(Embedder):
         for token in tokens:
             digest = hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest()
             index = int.from_bytes(digest[:4], "big") % self.dimension
-            sign = 1.0 if digest[4] % 2 == 0 else -1.0  # توزيع إشارات لتقليل التصادم المنحاز
+            sign = 1.0 if digest[4] % 2 == 0 else -1.0  # Signed hashing reduces biased collisions.
             vector[index] += sign
         norm = np.linalg.norm(vector)
         if norm > 0:
