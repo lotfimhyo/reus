@@ -4,20 +4,17 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-node_cloud_init — يبني سكربت bash حقيقي (سياسة user_data/cloud-init، مدعوم
-فعليًا من DigitalOcean/معظم مزوّدي السحابة) يُشغَّل تلقائيًا عند أول إقلاع
-لخادم سحابي جديد. يثبّت المتطلبات، يجلب كود مصدر Reus، ثم يُشغِّل
-`scripts/run_node.py` كخدمة نظام (`systemd`) تنضم تلقائيًا لعنقود موجود
-عبر `--seed-url`.
+node_cloud_init builds a real Bash user-data/cloud-init script for first boot
+of a new cloud server. It installs prerequisites, fetches Reus source code,
+and runs `scripts/run_node.py` as a systemd service that can join an existing
+cluster through `--seed-url`.
 
-**فجوة حقيقية واجب إشهارها صراحةً، لا إخفاؤها:** هذا الملف **لا** يحل مشكلة
-"كيف يصل كود مصدر Reus فعليًا لخادم سحابي فارغ لأول مرة" — لا توجد في هذه
-الجلسة بنية نشر (CI/CD) تُصدِر أرشيف كود منشور يمكن تنزيله. `source_fetch_cmd`
-معامل **إلزامي** (لا قيمة افتراضية صامتة) يجب على المُشغِّل توفيره صراحةً —
-مثال واقعي: `git clone https://github.com/<user>/reus.git /opt/reus` لمستودع
-خاص بمفتاح نشر (deploy key) مُضمَّن مسبقًا في صورة الخادم. طرح الأمر كمعامل
-صريح إلزامي بدل افتراض قيمة تبدو معقولة يمنع نشر خادم "ناجح" لا يحتوي فعليًا
-على أي كود يعمل.
+**Explicit boundary:** this module does not solve initial source distribution
+to an empty cloud server. It has no CI/CD mechanism that publishes a downloadable
+source archive. `source_fetch_cmd` is required with no silent default, so an
+operator must supply an actual source acquisition command. Making the command
+explicit prevents a superficially successful deployment that contains no
+working Reus code.
 """
 from __future__ import annotations
 
@@ -36,13 +33,13 @@ def build_node_cloud_init_script(
     repo_dir: str = "/opt/reus",
     node_data_dir: str = "/var/lib/reus/node",
 ) -> str:
-    """يرفع `ValueError` فورًا لدور غير معروف أو `source_fetch_cmd` فارغ —
-    لا سكربت جزئي يبدو صالحًا لكنه سيفشل فعليًا عند التنفيذ على الخادم."""
-    get_node_role(role_id)  # يرفع ValueError مبكرًا لدور غير معروف، قبل توليد أي سكربت
+    """Raise ValueError immediately for an unknown role or empty
+    source_fetch_cmd; never return a partial script that will fail on the server."""
+    get_node_role(role_id)  # Reject an unknown role before generating any script.
     if not source_fetch_cmd.strip():
         raise ValueError(
-            "source_fetch_cmd إلزامي — لا توجد آلية توزيع كود افتراضية في هذا المشروع بعد؛ "
-            "زوِّد أمرًا فعليًا (مثل git clone من مستودعك الخاص)."
+            "source_fetch_cmd is required because this project has no default source-distribution mechanism; "
+            "provide an actual command such as git clone from your repository."
         )
 
     run_node_cmd = [
@@ -61,9 +58,8 @@ def build_node_cloud_init_script(
         run_node_cmd += ["--seed-url", seed_bootstrap_url]
     run_node_cmd_str = " ".join(shlex.quote(part) for part in run_node_cmd)
 
-    # وحدة systemd حقيقية — تُعيد تشغيل العقدة تلقائيًا إن انهارت، وتبدأ فعليًا
-    # بعد إعادة إقلاع الخادم (enable)، لا مجرد عملية تُشغَّل مرة واحدة وتُفقَد
-    # صامتة عند أول تعطّل أو إعادة إقلاع.
+    # A real systemd unit restarts a failed node and starts it after server
+    # reboot, rather than launching a one-off process that silently disappears.
     systemd_unit = f"""[Unit]
 Description=Reus node ({role_id})
 After=network-online.target
@@ -84,17 +80,17 @@ WantedBy=multi-user.target
         "#!/bin/bash",
         "set -euxo pipefail",
         "",
-        "# 1) تثبيت المتطلبات الأساسية",
+        "# 1) Install prerequisites",
         "apt-get update -y",
         "apt-get install -y python3 python3-pip git",
         "",
-        "# 2) جلب كود المصدر — أمر مُزوَّد صراحةً من المُشغِّل، لا افتراض ضمني",
+        "# 2) Fetch source code with the operator-supplied command; no implicit default",
         f"mkdir -p {shlex.quote(repo_dir)}",
         source_fetch_cmd,
         "",
         f"pip3 install --break-system-packages -r {shlex.quote(repo_dir)}/requirements.txt || true",
         "",
-        "# 3) تثبيت وتفعيل وحدة systemd لتشغيل العقدة تلقائيًا",
+        "# 3) Install and enable the systemd unit for automatic node startup",
         f"mkdir -p {shlex.quote(node_data_dir)}",
         "cat > /etc/systemd/system/reus-node.service << 'REUS_UNIT_EOF'",
         systemd_unit.rstrip("\n"),
