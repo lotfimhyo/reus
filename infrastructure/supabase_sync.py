@@ -1,7 +1,8 @@
-"""Project: Reus | Developer: lotfi Mahiddine | Organization: Reulink.
+"""Project: Reus | Founder: Lotfi Mahiddine | Organization: Reulink.
 
-مرآة Supabase اختيارية للبيانات المعتمدة. هذا المكون لا يقبل النصوص الخام
-للمحادثات أو الذاكرة أو الأسرار؛ وإنما ملخصاً تشغيلياً محدود الحقول فقط.
+Optional Supabase mirror for approved data. This component does not accept raw
+conversation text, memory, or secrets; it accepts only a field-limited
+operational summary.
 """
 from __future__ import annotations
 
