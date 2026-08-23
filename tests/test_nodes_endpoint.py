@@ -4,10 +4,11 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-اختبارات لمسار /nodes الجديد — لوحة تحكم لعرض أدوار العقد المتاحة والعقد
-السحابية المنشورة، للقراءة فقط عمدًا (النشر يبقى حصريًا عبر بوابة الموافقة
-المزدوجة في تلغرام). يثبت أيضًا إصلاح خلل حقيقي اكتُشِف عبر تحقُّق حي: فشل
-مزوّد سحابي عابر كان يُسقِط الاستجابة كاملة بدل التدهور الرشيق.
+Tests for the new /nodes route: a dashboard for viewing available node roles
+and deployed cloud nodes, intentionally read-only. Deployment remains exclusive
+to the Telegram dual-approval gate. This also proves a real bug fix discovered
+through live verification: a transient cloud-provider failure previously
+collapsed the whole response instead of degrading gracefully.
 """
 from __future__ import annotations
 
