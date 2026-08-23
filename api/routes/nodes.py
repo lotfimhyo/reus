@@ -32,8 +32,8 @@ def list_nodes() -> dict:
     available_roles = [
         {
             "role_id": role.role_id,
-            "label": role.label_ar,
-            "description": role.description_ar,
+            "label": role.label,
+            "description": role.description,
             "skill_count": len(role.specs),
         }
         for role in NODE_ROLES.values()
