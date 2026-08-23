@@ -4,25 +4,23 @@
 # Contact: Contact@reulink.app
 
 """
-CognitiveTaskExecutor: يربط TaskNode (طبقة orchestration في Reus-Veritas OS)
-بدورة CognitiveEngine الإدراكية (تحليل -> خطط مرشّحة -> تقييم تكلفة/مخاطر ->
-تنفيذ -> تعلّم) القادمة من المكوّن المنقول في cognitive_core/.
+CognitiveTaskExecutor connects a TaskNode from Reus orchestration to the
+CognitiveEngine cycle: analysis, candidate plans, cost/risk evaluation,
+execution, and learning.
 
-القرار المعماري هنا: OrchestratorService/TaskWorker يبقيان مسؤولين فقط عن DAG
-المهام (تبعيات، إعادة محاولة، أحداث) — وهي مسؤولية Reus الأصلية ولم تتغيّر.
-CognitiveEngine مسؤول فقط عن "كيف تُنفَّذ مهمة واحدة" عبر سجل القدرات
-(CapabilityRegistry): أي منطق اختيار/تقييم/تعلّم يبقى بالكامل داخل
-cognitive_core كما هو، دون إعادة كتابة.
+OrchestratorService and TaskWorker remain responsible only for the task DAG,
+including dependencies, retries, and events. CognitiveEngine is responsible
+only for how one task executes through the capability registry. Selection,
+evaluation, and learning remain inside cognitive_core.
 
-مهمة (TaskNode) تُترجَم إلى Goal عبر payload:
-  payload["required_capability_name"] أو payload["required_tags"]
-  (مطلوب أحدهما على الأقل، وإلا تُرفض المهمة بخطأ تنفيذ واضح بدل فشل صامت)
+A TaskNode becomes a Goal through either payload["required_capability_name"]
+or payload["required_tags"]. At least one is required; otherwise execution is
+rejected explicitly rather than failing silently.
 
-مفتاحا التوجيه أعلاه لا يصلان للمعالج (handler) نفسه — CognitiveEngine يمرّر
-goal.payload كاملًا لأي معالج دون تمييز بين حقول التوجيه وحقل الإدخال
-الفعلي؛ لو تُركا كما هما لتلوّث كل قدرة ذاتية البناء بحقول لا علاقة لها بها.
-لذلك يُبنى Goal.payload هنا من الحقول المتبقية بعد استخراج حقلي التوجيه
-فقط، فتصل القدرة إلى ما يخصها حصرًا.
+These routing keys do not reach the capability handler. CognitiveEngine passes
+the complete goal payload to handlers, so leaving routing fields in it would
+pollute self-built capabilities with unrelated inputs. Goal.payload therefore
+contains only the fields that remain after extracting the routing keys.
 """
 from __future__ import annotations
 
@@ -39,14 +37,13 @@ _ROUTING_KEYS = ("required_capability_name", "required_tags")
 
 
 class CognitiveTaskExecutor(TaskExecutor):
-    """يوصل TaskWorker/OrchestratorService بمحرك Veritas الإدراكي بدل التنفيذ
-    الافتراضي البسيط (DefaultTaskExecutor) أو التوجيه المباشر للنموذج
-    (ModelRoutingExecutor). يُفعَّل عبر REUS_TASK_EXECUTOR=cognitive.
-    """
+    """Connect TaskWorker and OrchestratorService to CognitiveEngine instead
+    of DefaultTaskExecutor or direct ModelRoutingExecutor routing. Enable with
+    REUS_TASK_EXECUTOR=cognitive."""
 
     def __init__(self, engine: CognitiveEngine, executor) -> None:
         self._engine = engine
-        self._executor = executor  # veritas_ai.cognitive.execution.Executor المُحقَن
+        self._executor = executor  # Injected cognitive execution adapter.
 
     def execute(self, task: TaskNode):
         goal = self._build_goal(task)
@@ -57,7 +54,7 @@ class CognitiveTaskExecutor(TaskExecutor):
 
         if not cycle.execution_result.success:
             raise TaskExecutionError(
-                cycle.execution_result.error or f"فشل تنفيذ القدرة المختارة للمهمة {task.task_id}"
+                cycle.execution_result.error or f"Selected capability execution failed for task {task.task_id}"
             )
         return cycle.execution_result.output
 
@@ -67,9 +64,9 @@ class CognitiveTaskExecutor(TaskExecutor):
         required_tags = tuple(task.payload.get("required_tags", ()))
         if not required_name and not required_tags:
             raise TaskExecutionError(
-                f"مهمة {task.task_id!r} ({task.name!r}) لا تحدد "
-                "required_capability_name ولا required_tags في payload — "
-                "لا يمكن لـ CognitiveEngine مطابقتها بأي قدرة."
+                f"Task {task.task_id!r} ({task.name!r}) specifies neither "
+                "required_capability_name nor required_tags in its payload; "
+                "CognitiveEngine cannot match it to a capability."
             )
         clean_payload = {k: v for k, v in task.payload.items() if k not in _ROUTING_KEYS}
         return Goal(
