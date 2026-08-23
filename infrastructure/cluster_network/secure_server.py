@@ -51,8 +51,9 @@ class _BadRequestBody(Exception):
     unbounded rfile.read() (no cap on size) reach the handler thread."""
 
 
-# سخي كفاية لأكبر حمولة متوقَّعة فعليًا (لقطة Raft لعقدة متأخرة كثيرًا) دون
-# ترك سقف مفتوح يسمح لِند (حتى لو موثوق عبر mTLS) بإجبار قراءة غير محدودة.
+# Generous enough for the largest expected payload (a Raft snapshot for a
+# far-behind node), without an open ceiling that lets even an mTLS-trusted
+# peer force an unbounded read.
 _MAX_BODY_BYTES = 20 * 1024 * 1024  # 20MB
 
 
