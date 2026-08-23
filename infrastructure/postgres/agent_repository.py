@@ -4,9 +4,9 @@
 # Contact: Contact@reulink.app
 
 """
-PostgresAgentRepository: يلتزم بواجهة AgentRepository المجردة تمامًا،
-لذا يمكن استبداله بـ InMemoryAgentRepository بتغيير سطر واحد في container.py
-دون أي تعديل في application/ أو api/.
+PostgresAgentRepository fully implements the abstract AgentRepository
+interface, so it can be replaced with InMemoryAgentRepository by changing one
+line in container.py without modifying application/ or api/.
 """
 from __future__ import annotations
 
