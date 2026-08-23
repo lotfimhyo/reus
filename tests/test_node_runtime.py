@@ -4,10 +4,11 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-يثبت أن `infrastructure/node_runtime.py` (نفس الدوال التي يستدعيها
-`scripts/run_node.py` فعليًا) تبني عقدة حقيقية بكل مهاراتها المُعرَّفة في
-`node_roles.py`، وأن عقدتين مُركَّبتين بهذه الدالة بالضبط يمكنهما الانضمام
-لبعضهما عبر نفس آلية mTLS + تلغرام الحقيقية المبنية سابقًا.
+Verifies that `infrastructure/node_runtime.py` (the same functions invoked by
+`scripts/run_node.py`) composes a node with all skills defined in
+`node_roles.py`. It also verifies that two nodes composed through that path can
+join one another using the local mTLS and Telegram-approval test flow; it does
+not perform an external Telegram provider verification.
 
 Run: `python3 -m unittest tests.test_node_runtime -v`
 """
