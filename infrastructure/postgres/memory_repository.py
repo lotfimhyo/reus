@@ -4,14 +4,15 @@
 # Contact: Contact@reulink.app
 
 """
-PostgresMemoryRepository: يستخدم pgvector لتخزين المتجهات والبحث بالتشابه
-(cosine distance) مباشرة داخل PostgreSQL، فيحصل على المزايا التي كانت في
-FAISS (بحث متجهي سريع) مع إضافة الديمومة (البيانات تبقى بعد إعادة التشغيل).
-يلتزم بنفس واجهة MemoryRepository تمامًا.
+PostgresMemoryRepository uses pgvector for vector storage and similarity
+search (cosine distance) directly in PostgreSQL. It provides the benefits of
+FAISS (fast vector search) with persistence (data remains after a restart),
+while implementing the same MemoryRepository interface.
 
-تشفير عند التخزين (Encryption at Rest): المحتوى الخام يُشفَّر عبر
-EncryptionService قبل الكتابة، ويُفَك تشفيره فور القراءة — بشفافية كاملة عن
-domain وapplication، اللذين يتعاملان دائمًا مع MemoryRecord.content كنص صافٍ.
+Encryption at rest: raw content is encrypted through EncryptionService before
+it is written and decrypted immediately when read. This remains transparent to
+the domain and application layers, which always handle MemoryRecord.content as
+plain text.
 """
 from __future__ import annotations
 
@@ -64,7 +65,7 @@ class PostgresMemoryRepository(MemoryRepository):
             row = session.get(MemoryRecordModel, memory_id)
             if row is None or row.deleted:
                 raise MemoryNotFound(memory_id)
-            row.deleted = True  # حذف منطقي، يطابق سلوك FaissMemoryRepository السابق
+            row.deleted = True  # Soft delete, matching the previous FaissMemoryRepository behavior.
             session.commit()
 
     def list_by_agent(self, agent_id: str) -> list[MemoryRecord]:
@@ -77,7 +78,8 @@ class PostgresMemoryRepository(MemoryRepository):
 
     def search(self, query_embedding: list[float], top_k: int, agent_id: str | None = None) -> list[SearchResult]:
         with new_session() as session:
-            # cosine_distance = 1 - cosine_similarity؛ نحوّلها إلى تشابه لإبقاء نفس دلالة SearchResult.score
+            # cosine_distance = 1 - cosine_similarity; convert it to similarity
+            # to preserve the existing SearchResult.score semantics.
             distance = MemoryRecordModel.embedding.cosine_distance(query_embedding)
             stmt = select(MemoryRecordModel, distance.label("distance")).where(
                 MemoryRecordModel.deleted.is_(False)
