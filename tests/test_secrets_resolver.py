@@ -42,7 +42,7 @@ def test_resolve_secrets_overrides_only_fields_found_in_provider():
         resolver_module._build_provider = original_build
 
     assert resolved.anthropic_api_key == "resolved-value"
-    assert resolved.openai_api_key == "original-openai"  # لم يُعثر عليه في المزوّد، بقي كما هو
+    assert resolved.openai_api_key == "original-openai"  # Not found in the provider, so it remains unchanged.
 
 
 def test_resolve_secrets_raises_for_unsupported_backend():
