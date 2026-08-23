@@ -40,11 +40,11 @@ _TEMPLATES = {
         "        return text == text[::-1]"
     ),
     "sort_words": "return ' '.join(sorted(str(input_data).split()))",
-    # -- عقدة النصوص (إضافات) ------------------------------------------------
+    # -- Text utilities --------------------------------------------------------
     "title_case": "return ' '.join(w.capitalize() for w in str(input_data).split())",
     "remove_whitespace": "return ''.join(str(input_data).split())",
     "vowel_count": "return sum(1 for ch in str(input_data).lower() if ch in 'aeiou')",
-    # -- عقدة الترميز (Caesar cipher + Run-Length Encoding) ------------------
+    # -- Encoding utilities (Caesar cipher + Run-Length Encoding) ------------
     "caesar_encode": (
         "shift = 3\n"
         "        text = str(input_data)\n"
@@ -101,7 +101,7 @@ _TEMPLATES = {
         "        return result"
     ),
     "checksum_sum": "return sum(ord(ch) for ch in str(input_data)) % 256",
-    # -- عقدة الحساب ----------------------------------------------------------
+    # -- Numeric utilities ----------------------------------------------------
     "digit_sum": "return sum(int(ch) for ch in str(input_data) if ch.isdigit())",
     "is_numeric": "return str(input_data).strip().lstrip('-').replace('.', '', 1).isdigit()",
     "decimal_to_binary": (
@@ -149,7 +149,7 @@ _TEMPLATES = {
         "            result *= i\n"
         "        return result"
     ),
-    # -- عقدة التنسيق -----------------------------------------------------------
+    # -- Formatting utilities -------------------------------------------------
     "slugify": (
         "text = str(input_data).strip().lower()\n"
         "        result = ''\n"
@@ -195,7 +195,7 @@ _TEMPLATES = {
         "            return text\n"
         "        return text[:max_len - 3] + '...'"
     ),
-    # -- عقدة التدقيق -----------------------------------------------------------
+    # -- Validation utilities -------------------------------------------------
     "luhn_check": (
         "digits = [int(ch) for ch in str(input_data) if ch.isdigit()]\n"
         "        if not digits:\n"
