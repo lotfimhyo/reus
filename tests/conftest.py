@@ -4,24 +4,24 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-اعداد pytest مشترك عبر كل ملفات الاختبار.
+Shared pytest configuration for every test file.
 
-get_admin_rate_limiter() وget_chat_rate_limiter() (container.py) مخبَّآن
-عمدًا على مستوى العملية (lru_cache) وهذا سلوك صحيح للإنتاج. لكن هذا يعني
-أن كل ملفات الاختبار التي تستدعي مسارات محمية عبر TestClient تتشارك نفس
-محدِّد المعدل طوال تشغيل pytest، وتُحتسَب كأنها من نفس العميل، فيتراكم
-العداد عبر ملفات لا علاقة بينها.
+``get_admin_rate_limiter()`` and ``get_chat_rate_limiter()`` (container.py)
+are deliberately cached at process scope with ``lru_cache``; that is correct
+in production. However, it means test files that invoke protected routes with
+TestClient share the same rate limiter throughout a pytest run and are counted
+as the same client, causing the counter to accumulate across unrelated files.
 
-اكتُشِف هذا فعليًا: 29 اختبارًا فشلت بكود 429 عند تشغيل المجموعة كاملة رغم
-نجاحها منفردة. الإصلاح الصحيح: تفريغ حالة المحدِّد بين كل اختبار، لا رفع
-السقف نفسه ولا تعطيله.
+This was observed directly: 29 tests returned 429 during the full suite while
+passing alone. The correct fix is to clear limiter state between tests, not to
+raise or disable the limit.
 """
 import os
 
 import pytest
 
-# الاختبارات لا يجب أن تعتمد على .env محلي أو أسرار المستخدم. هذه قيم اختبار
-# اصطناعية منخفضة الصلاحية تُضبط قبل استيراد الوحدات التي تستدعي get_settings().
+# Tests must not depend on a local .env file or user secrets. These low-privilege
+# synthetic values are set before importing units that call get_settings().
 os.environ.setdefault("REUS_API_KEY", "test-admin-secret-12345678901234567890")
 os.environ.setdefault("REUS_USER_API_KEY", "test-user-secret-12345678901234567890")
 os.environ.setdefault("REUS_ENVIRONMENT", "test")
