@@ -116,7 +116,7 @@ class TestApiClusterWorkerStartup(unittest.TestCase):
                 accepted = orchestrator.create_workflow(
                     CreateWorkflowCommand(
                         name="accepted",
-                        tasks=[TaskSpec(name="raft-accepted", agent_id=agent.agent_id, payload={"prompt": "اختبار lease"})],
+                        tasks=[TaskSpec(name="raft-accepted", agent_id=agent.agent_id, payload={"prompt": "lease test"})],
                     )
                 )
                 deadline = time.monotonic() + 5.0
@@ -132,7 +132,7 @@ class TestApiClusterWorkerStartup(unittest.TestCase):
                 rejected = orchestrator.create_workflow(
                     CreateWorkflowCommand(
                         name="blocked",
-                        tasks=[TaskSpec(name="raft-blocked", agent_id=agent.agent_id, payload={"prompt": "اختبار فقدان القيادة"})],
+                        tasks=[TaskSpec(name="raft-blocked", agent_id=agent.agent_id, payload={"prompt": "leadership loss test"})],
                     )
                 )
                 deadline = time.monotonic() + 5.0
