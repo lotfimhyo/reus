@@ -4,18 +4,20 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-أول اختبارات مباشرة لـ SandboxedExecutor (`infrastructure/cognitive_core/
-resource/sandbox.py`) — كانت مغطاة سابقًا بشكل غير مباشر فقط عبر اختبارات
-أعلى طبقة (test_node_roles، test_capability_binder، ...) دون أي اختبار
-يتحقق من آلية العزل نفسها (المهلة الزمنية، حد الذاكرة، التقاط الأخطاء).
+First direct tests for SandboxedExecutor (infrastructure/cognitive_core/
+resource/sandbox.py). It was previously covered only indirectly by higher-
+level tests such as test_node_roles and test_capability_binder, without tests
+of the isolation mechanism itself: timeouts, memory limits, and exception
+capture.
 
-يثبت هذا الملف تحديدًا إصلاح خلل حقيقي مكتشَف بالقياس المباشر: تحويل حد
-الذاكرة (`RLIMIT_AS`) من سقف مطلق إلى سقف نسبي (فوق الحجم الافتراضي الفعلي
-الذي ورثته العملية الفرعية عبر fork()، مقاسًا بـVmSize لا RSS) — لم يُصلَح
-هذا التعليق الحقيقي (hang) الذي كان يحدث عند تشغيل tests.test_cluster_
-mtls_bootstrap ثم tests.test_node_roles في نفس العملية. الاختبار الحرج هنا
-هو `test_actual_over_allocation_is_still_caught`: يتحقق أن الإصلاح لم
-يُبطِل الغرض من الحد أصلًا (سقف نسبي واسع جدًا لا يعني بلا سقف).
+This file specifically verifies a measured fix: changing the ``RLIMIT_AS``
+memory limit from an absolute ceiling to a relative ceiling above the baseline
+size inherited by the forked child process, measured through VmSize rather
+than RSS. The fix addressed a real hang when tests.test_cluster_mtls_bootstrap
+and tests.test_node_roles ran in the same process. The critical test,
+``test_actual_over_allocation_is_still_caught``, verifies that the correction
+does not defeat the limit's purpose; a very wide relative ceiling is not no
+ceiling.
 """
 from __future__ import annotations
 
@@ -56,14 +58,14 @@ class TestSandboxedExecutor(unittest.TestCase):
         self.assertEqual(outcome.status, "timeout")
 
     def test_actual_over_allocation_is_still_caught(self):
-        """الاختبار الحرج للإصلاح: الحد النسبي الجديد يضيف هامشًا فوق حجم
-        العملية الموروث، لكن يجب أن يبقى هامشًا محدودًا فعليًا — مهمة تحاول
-        حجز أضعاف الحد المسموح يجب أن تفشل، لا أن تنجح بصمت لأن الحد صار
-        فضفاضًا بلا معنى."""
+        """Critical regression test: the new relative limit adds headroom
+        above the inherited process size, but the headroom must remain finite.
+        A task allocating multiples of the allowed limit must fail rather than
+        silently succeeding because the limit became meaningless."""
         def allocates_way_too_much(payload):
-            # يحاول حجز ~2 جيجابايت من الذاكرة الفعلية — أكبر بكثير من أي
-            # هامش نسبي معقول (memory_limit_mb=64 هنا) بصرف النظر عن حجم
-            # العملية الأصلي وقت fork().
+            # Attempt to reserve ~2 GiB of memory, far beyond any reasonable
+            # relative headroom (memory_limit_mb=64 here) regardless of the
+            # parent-process size at fork time.
             hog = bytearray(2 * 1024 * 1024 * 1024)
             return {"len": len(hog)}
 
@@ -75,8 +77,9 @@ class TestSandboxedExecutor(unittest.TestCase):
             self.assertIn("Memory", outcome.data)
 
     def test_none_memory_limit_means_no_ceiling_applied(self):
-        """memory_limit_mb=None يجب أن يبقى معناه \"بلا حد\" صراحة، لا قيمة
-        افتراضية مخفية — يوثّق سلوكًا موجودًا أصلًا، لم يتغيّر بالإصلاح."""
+        """memory_limit_mb=None must explicitly continue to mean "no limit,"
+        not an implicit default; this documents existing behavior unchanged by
+        the correction."""
         outcome = self.executor.run(
             lambda payload: {"ok": True}, {}, timeout_seconds=5.0, memory_limit_mb=None
         )
