@@ -16,8 +16,9 @@ from infrastructure.postgres.session import Base
 
 class AgentModel(Base):
     """
-    صف واحد لكل وكيل. الحقول المركّبة (الصلاحيات، الأهداف، سجل العمليات، المؤشرات)
-    تُخزَّن كـ JSON لأنها جزء من نفس الـ Aggregate (Agent) ولا تحتاج استعلامًا مستقلًا الآن.
+    One row per agent. Compound fields (permissions, goals, operation log, and
+    metrics) are stored as JSON because they belong to the same Agent aggregate
+    and do not currently need independent querying.
     """
 
     __tablename__ = "agents"
@@ -35,15 +36,17 @@ class AgentModel(Base):
 
 class MemoryRecordModel(Base):
     """
-    مقطع ذاكرة واحد. عمود embedding من نوع pgvector يسمح بالبحث بالتشابه
-    مباشرة داخل قاعدة البيانات (cosine distance) دون الحاجة لأي فهرس خارجي.
+    One memory chunk. The pgvector embedding column enables similarity search
+    directly in the database (cosine distance) without an external index.
 
-    content_encrypted: نص مشفّر (Fernet) وليس نصًا صافيًا — الاسم نفسه موثِّق
-    عمدًا لمنع أي قراءة مباشرة خاطئة للعمود من أدوات أو استعلامات لا تمر عبر
-    PostgresMemoryRepository (وهي الوحيدة التي تملك EncryptionService لفك التشفير).
-    ملاحظة صدق: عمود embedding ليس مشفّرًا (يُحسب من النص الصافي قبل التشفير
-    لتمكين البحث الدلالي)، وهذا حد معروف: المتجهات قد تسرّب معلومات إحصائية
-    جزئية عن المحتوى حتى مع تشفير النص الخام نفسه.
+    content_encrypted: Fernet-encrypted text, not plaintext. The name is
+    intentional documentation that prevents incorrect direct reads of this
+    column by tools or queries that do not pass through
+    PostgresMemoryRepository, the only component holding EncryptionService for
+    decryption. Known limitation: the embedding column is not encrypted (it is
+    computed from plaintext before encryption to enable semantic search).
+    Vectors may therefore reveal limited statistical information about content
+    even when the raw text itself is encrypted.
     """
 
     __tablename__ = "memory_records"
@@ -59,8 +62,9 @@ class MemoryRecordModel(Base):
 
 class AgentTokenModel(Base):
     """
-    رمز خاص بوكيل واحد. token_hash فقط يُخزَّن (SHA-256)؛ النص الصافي لا يُحفَظ أبدًا
-    في أي مكان بعد لحظة الإصدار — تمامًا كأي بيانات اعتماد حقيقية (كلمات المرور مثلًا).
+    Token for one agent. Only token_hash (SHA-256) is stored; plaintext is
+    never retained anywhere after issuance, as with real credentials such as
+    passwords.
     """
 
     __tablename__ = "agent_tokens"
@@ -77,9 +81,10 @@ class AgentTokenModel(Base):
 
 class WorkflowModel(Base):
     """
-    Workflow كاملًا (بكل مهامه) يُخزَّن كمستند JSON واحد، لأن Workflow هو حدود
-    الـ Aggregate/Transaction بالكامل في هذا النظام (نمط DDD معروف: Aggregate-as-Document).
-    هذا يضمن تحديثًا ذريًا لكل حالة المهام معًا دون تعارضات جزئية.
+    The complete workflow, including all tasks, is stored as one JSON document
+    because a workflow is the full aggregate and transaction boundary in this
+    system (the established DDD Aggregate-as-Document pattern). This guarantees
+    atomic updates to all task state together without partial conflicts.
     """
 
     __tablename__ = "workflows"
