@@ -3,27 +3,20 @@
 # Organization: Reulink
 # Contact: Contact@reulink.app
 
-"""
-ModelRoutingExecutor: تطبيق TaskExecutor يستخدم ModelRouter لاختيار أنسب نموذج
-لكل مهمة (عبر أي مزوّد مسجَّل) بناءً على payload المهمة، ثم يستدعيه فعليًا عبر
-عميل ذلك المزوّد تحديدًا (ModelClientRegistry)، مع دعم اختياري لـ Tool Use.
+"""TaskExecutor implementation that uses `ModelRouter` to choose a model from
+a registered provider according to task payload and invokes it through the
+provider-specific `ModelClientRegistry`. Tool use is optional.
 
-يقرأ من task.payload:
-- "prompt" (مطلوب): النص المُرسَل للنموذج.
-- "required_capabilities" (اختياري): قدرات يجب أن يدعمها النموذج المختار.
-- "min_context_tokens" (اختياري).
-- "max_input_cost_per_1k_tokens_usd" (اختياري): سقف تكلفة.
-- "prefer" (اختياري): "cheapest" | "fastest" | "most_capable" (الافتراضي "cheapest").
-- "max_tokens" (اختياري): الحد الأقصى لرموز الاستجابة (الافتراضي 1024).
-- "enable_tools" (اختياري، افتراضي false): إن كان صحيحًا، يُشغَّل النموذج بحلقة
-  أدوات كاملة (Tool Use) يمكنه خلالها استدعاء أدوات الذاكرة (search_memory/
-  store_memory) فعليًا، وأدوات التعاون (create_task/list_agents) إن زُوِّد
-  المنفّذ بـ orchestrator وagent_repo عند البناء — فيستطيع الوكيل عندها تفويض
-  مهام لنفسه أو لوكيل آخر مباشرة أثناء توليد استجابته (بشرط صلاحية spawn:subagent).
-  يتطلب أن يدعم عميل المزوّد المختار invoke_with_tools (Anthropic يدعمه حاليًا).
+`task.payload` accepts `prompt` (required), optional capability, context,
+input-cost, preference, and maximum-token constraints, and `enable_tools`.
+When tools are enabled, a task must be assigned to an agent and the executor
+must receive `MemoryService`. Collaboration tools are exposed only when both
+an orchestrator and agent repository are configured; delegated work still
+requires the agent's `spawn:subagent` permission. The selected provider must
+support `invoke_with_tools`.
 
-قابل للاستبدال أو التبديل مع DefaultTaskExecutor عبر container.py (REUS_TASK_EXECUTOR)
-دون أي تعديل في TaskWorker أو OrchestratorService.
+The executor can replace `DefaultTaskExecutor` through `REUS_TASK_EXECUTOR`
+without changes to `TaskWorker` or `OrchestratorService`.
 """
 from __future__ import annotations
 
@@ -58,7 +51,7 @@ class ModelRoutingExecutor(TaskExecutor):
     def execute(self, task: TaskNode) -> Any:
         prompt = task.payload.get("prompt")
         if not prompt:
-            raise TaskExecutionError(f"المهمة '{task.name}' بلا 'prompt' في payload؛ لا يمكن توجيهها إلى نموذج")
+            raise TaskExecutionError(f"Task '{task.name}' has no payload prompt and cannot be routed to a model.")
 
         requirements = TaskRequirements(
             required_capabilities=frozenset(task.payload.get("required_capabilities", [])),
@@ -81,9 +74,9 @@ class ModelRoutingExecutor(TaskExecutor):
 
         if task.payload.get("enable_tools"):
             if task.agent_id is None:
-                raise TaskExecutionError("استخدام الأدوات (enable_tools) يتطلب إسناد المهمة لوكيل (agent_id)")
+                raise TaskExecutionError("Tool use requires the task to be assigned to an agent (agent_id).")
             if self._memory_service is None:
-                raise TaskExecutionError("استخدام الأدوات يتطلب تزويد ModelRoutingExecutor بـ MemoryService")
+                raise TaskExecutionError("Tool use requires ModelRoutingExecutor to receive MemoryService.")
 
             tool_executor = AgentToolExecutor(
                 memory_service=self._memory_service,
@@ -91,8 +84,8 @@ class ModelRoutingExecutor(TaskExecutor):
                 orchestrator=self._orchestrator,
                 agent_repo=self._agent_repo,
             )
-            # نعرض أدوات التعاون للنموذج فقط إن كانت مفعّلة فعليًا في هذا المنفّذ،
-            # حتى لا يحاول النموذج استدعاء أداة سترفع UnknownTool بلا فائدة
+            # Expose collaboration tools only when this executor can actually
+            # fulfill them, so the model never calls a guaranteed UnknownTool.
             available_tools = ALL_TOOLS if (self._orchestrator and self._agent_repo) else MEMORY_TOOLS
             try:
                 response_text = client.invoke_with_tools(
