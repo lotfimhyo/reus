@@ -14,21 +14,21 @@ from domain.agent_token import AgentToken
 
 class IssueTokenRequest(BaseModel):
     label: str = Field(default="", max_length=200)
-    # None (الافتراضي): يرث الرمز كل صلاحيات الوكيل الحالية (السلوك السابق، متوافق للخلف).
-    # قائمة صريحة: يُقيَّد الرمز بها فقط، ويُرفض الطلب إن تجاوزت صلاحيات الوكيل نفسه.
+    # None (default): inherit all current agent permissions for backward compatibility.
+    # Explicit list: limit the token to those scopes and reject scopes above the agent's permissions.
     scopes: list[str] | None = None
 
 
 class IssuedTokenResponse(BaseModel):
     token_id: str
-    plaintext: str  # يظهر مرة واحدة فقط في استجابة الإصدار؛ لا يظهر في أي مسار آخر بعدها أبدًا
+    plaintext: str  # Returned once at issuance and never exposed by another endpoint.
     label: str
     scopes: list[str]
     created_at: datetime
 
 
 class AgentTokenResponse(BaseModel):
-    """بيانات وصفية فقط — لا نص صافٍ ولا hash، حتى في استجابات السرد."""
+    """Metadata only; never return plaintext or a token hash, including list responses."""
 
     token_id: str
     label: str
