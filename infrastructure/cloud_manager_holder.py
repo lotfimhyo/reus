@@ -4,16 +4,17 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-CloudDeploymentManager لا يمكن بناؤه كـsingleton ثابت وقت تركيب الحاوية —
-يعتمد على مزوّد (provider) لا يُختار إلا حين ينفّذ مدير حقيقي /configure_cloud
-عبر تلغرام (`CloudTelegramCommands._cmd_configure`). قبل هذه الحلقة، كانت
-النتيجة مخزَّنة كحالة خاصة داخل `CloudTelegramCommands` فقط (`self._manager`)
-— لا مسار للوحة التحكم (HTTP) لرؤيتها إطلاقًا، رغم أن المدير نفسه (منطق
-الحدود والقائمة) لا علاقة له بتلغرام تحديدًا.
+CloudDeploymentManager cannot be constructed as a fixed singleton during
+composition because it depends on a provider selected only when an authorized
+operator runs `/configure_cloud` through Telegram. Before this holder existed,
+the manager was private state inside CloudTelegramCommands, leaving the read-only
+HTTP control-plane path unable to inspect it even though the manager's limits and
+listing logic are not Telegram-specific.
 
-`CloudManagerHolder` صندوق مشترك بسيط: `CloudTelegramCommands` يملأه فور
-نجاح `/configure_cloud`، ومسار `/nodes` (api/routes/nodes.py) يقرأه فقط —
-مصدر حقيقة واحد، لا حالتان منفصلتان قد تتباعدان."""
+CloudManagerHolder is a small shared container. CloudTelegramCommands populates
+it only after successful `/configure_cloud`; `/nodes` reads it only. This gives
+one source of truth instead of two states that could diverge. It performs no
+provider call, purchase, or resource creation itself."""
 from __future__ import annotations
 
 from typing import Optional
