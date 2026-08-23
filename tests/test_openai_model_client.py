@@ -4,9 +4,10 @@
 # Contact: Contact@reulink.app
 
 """
-اختبارات OpenAIModelClient. راجع ملاحظة الصدق في infrastructure/model_client.py:
-هذه البيئة لا تصل شبكيًا إلى api.openai.com إطلاقًا (بغض النظر عن أي مفتاح)،
-لذا تُحقن هذه الاختبارات عميل SDK وهميًا للتحقق من منطق التكامل الذي نملكه فعلًا.
+Tests for OpenAIModelClient. See the honesty note in
+infrastructure/model_client.py: this environment has no network access to
+api.openai.com regardless of any key, so these tests inject a fake SDK client
+to verify the integration logic that is actually available.
 """
 from __future__ import annotations
 
@@ -82,6 +83,6 @@ def test_invoke_wraps_api_error():
 
 
 def test_client_construction_is_lazy_and_does_not_require_real_key():
-    """لا يجب أن يفشل بناء العميل فقط لعدم وجود مفتاح حقيقي (Lazy Construction)."""
+    """Client construction must not fail merely because no real key exists (lazy construction)."""
     client = OpenAIModelClient(api_key="")
     assert client is not None
