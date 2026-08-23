@@ -175,7 +175,7 @@ def _install_common_middleware_and_handlers(app: FastAPI) -> None:
 
             response = JSONResponse(
                 status_code=413,
-                content={"detail": "حجم الطلب يتجاوز الحد المسموح", "request_id": request_id},
+                content={"detail": "Request body exceeds the allowed size.", "request_id": request_id},
             )
         else:
             response = await call_next(request)
@@ -228,7 +228,7 @@ def _install_common_middleware_and_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=422,
             content={
-                "detail": "فشل التحقق من صحة الطلب",
+                "detail": "Request validation failed.",
                 "errors": exc.errors(),
                 "request_id": getattr(request.state, "request_id", None),
             },
@@ -246,7 +246,7 @@ def _install_common_middleware_and_handlers(app: FastAPI) -> None:
         )
         return JSONResponse(
             status_code=500,
-            content={"detail": "خطأ داخلي في الخادم", "request_id": request_id},
+            content={"detail": "Internal server error.", "request_id": request_id},
         )
 
     @app.get("/health")
@@ -355,12 +355,12 @@ def _install_admin_routes(app: FastAPI) -> None:
 
 def create_app(*, include_public: bool = True, include_admin: bool = True) -> FastAPI:
     if not include_public and not include_admin:
-        raise ValueError("create_app: يجب تضمين مسار عام أو إداري واحد على الأقل")
+        raise ValueError("create_app: include at least one public or administrative route group")
 
     title_suffix = "" if (include_public and include_admin) else (" (Public)" if include_public else " (Admin)")
     app = FastAPI(
         title="Reus-Veritas OS" + title_suffix,
-        description="نظام تشغيل الوكلاء الذكيين المستقلين",
+        description="A local-first, human-governed distributed AI system.",
         version="0.5.0",
         # عمّال الخلفية (المهام، تلغرام، التقرير اليومي) هم مسؤولية admin_app/app
         # فقط — انظر توثيق الوحدة أعلاه لسبب عدم تشغيلهم في public_app المستقل.
