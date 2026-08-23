@@ -4,18 +4,18 @@
 # Contact: Contact@reulink.app
 
 """
-سجل النماذج الافتراضي عبر عدة مزوّدين (Anthropic, OpenAI, Google).
+Default multi-provider model registry for Anthropic, OpenAI, Google, and Kimi.
 
-ملاحظة صدق مهمة: أرقام التكلفة (`input_cost_per_1k_tokens_usd` إلخ) هنا **تقديرية
-نسبية لأغراض الترتيب فقط** وليست تسعيرًا رسميًا معلنًا يُعتمَد عليه في الفوترة —
-يجب على أي مُشغّل إنتاجي تحديثها من صفحة تسعير كل مزوّد الرسمية الحالية قبل
-الاعتماد عليها في قرارات تكلفة حقيقية. القيم هنا تحافظ فقط على الترتيب النسبي
-الصحيح داخل كل عائلة نماذج (الأرخص/الأسرع أولًا، الأعلى قدرة وتكلفة أخيرًا).
+Important accuracy note: the cost fields are **relative estimates for ordering
+only**, not official pricing suitable for billing. A production operator must
+replace them with current values from each provider's official pricing page
+before making real cost decisions. These values preserve only an intended
+relative ordering within each model family.
 
-ملاحظة ثانية: نماذج OpenAI وGoogle مُدرجة هنا لأن ModelRouter مصمَّم ليكون
-عابرًا للمزوّدين بطبيعته — لكن العملاء الفعليين لهذين المزوّدين (راجع
-infrastructure/model_client.py) لم يُتحقق منهما عبر شبكة فعلية في هذه البيئة
-تحديدًا (مقيَّدة بالوصول إلى api.anthropic.com فقط)، بعكس Anthropic.
+OpenAI and Google profiles exist because ModelRouter is provider-agnostic by
+design. In this constrained development environment, their live clients were
+not network-validated; see infrastructure/model_client.py. This registry does
+not claim external availability, pricing accuracy, or model validation.
 """
 from __future__ import annotations
 
