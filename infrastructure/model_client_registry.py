@@ -4,10 +4,10 @@
 # Contact: Contact@reulink.app
 
 """
-ModelClientRegistry: يربط بين اسم المزوّد (provider في ModelProfile) والعميل
-الفعلي المسؤول عن استدعائه. هذا ما يسمح لـ ModelRouter باختيار أنسب نموذج عبر
-كل المزوّدين المسجَّلين معًا (Anthropic, OpenAI, Google...)، بينما ModelRoutingExecutor
-لا يحتاج معرفة أي تفاصيل عن أي SDK على الإطلاق — فقط "أعطني عميل هذا المزوّد".
+ModelClientRegistry maps a provider name from ModelProfile to the concrete
+client that invokes it. This lets ModelRouter select an appropriate model
+across all registered providers while ModelRoutingExecutor remains independent
+of provider SDK details and only requests that provider's client.
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from infrastructure.model_client import ModelClient
 
 class UnknownProvider(Exception):
     def __init__(self, provider: str):
-        super().__init__(f"لا يوجد عميل مسجَّل للمزوّد: '{provider}'")
+        super().__init__(f"No client is registered for provider: '{provider}'")
 
 
 class ModelClientRegistry:
