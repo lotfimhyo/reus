@@ -4,9 +4,10 @@
 # Contact: Contact@reulink.app
 
 """
-اختبارات TaskWorker: تتحقق أن المهام تُنفَّذ فعليًا وتلقائيًا (دون استدعاء API يدوي
-لكل خطوة) فور جاهزيتها، عبر انتظار نشط (Polling) بمهلة زمنية معقولة، لأن المعالجة
-تتم بشكل غير متزامن في خيوط عمّال منفصلة (راجع تعليق التصميم في task_worker.py).
+Tests for TaskWorker: verify that tasks execute automatically as soon as they
+are ready, without a manual API call for every step, through active polling
+with a reasonable timeout. Processing is asynchronous in separate worker
+threads (see the design comment in task_worker.py).
 """
 from __future__ import annotations
 
