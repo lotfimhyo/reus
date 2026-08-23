@@ -1,0 +1,89 @@
+Reulink Non-Commercial Community License 1.0
+
+Copyright (c) 2026 Lotfi Mahiddine and Reulink.
+
+IMPORTANT: This is a non-commercial source-available license. It is not an
+Open Source Initiative (OSI) approved open-source license. Review this draft
+with qualified legal counsel before relying on it in a particular jurisdiction.
+
+1. Definitions
+
+"Licensor" means Lotfi Mahiddine and Reulink. "Software" means the Reus source
+code, documentation, and original materials in this repository that are owned
+by the Licensor. "Non-Commercial Use" means use solely for personal,
+educational, academic, non-profit research, evaluation, or private
+experimentation, with no purpose of commercial advantage or monetary
+compensation.
+
+"Commercial Use" includes, without limitation: selling, licensing, renting,
+hosting, offering, or distributing the Software or a derivative as a paid
+product or service; operating it for a business or fee-paying customer; using
+it to provide paid consulting, managed services, training, or support; bundling
+it with a commercial offering; or using it in an activity intended to produce
+direct or indirect commercial advantage. A use is Commercial Use even where no
+fee is charged to the end user if it supports a commercial product, service, or
+business operation.
+
+2. Grant
+
+Subject to this License, the Licensor grants you a worldwide, revocable,
+non-exclusive, non-transferable, non-sublicensable right to copy, run, study,
+modify, and share the Software solely for Non-Commercial Use.
+
+You may share complete, unmodified or modified copies for Non-Commercial Use
+only if you retain this License, copyright notices, attribution to Reulink and
+Lotfi Mahiddine, all applicable notices, and a clear notice of your changes.
+You must distribute source for any modified copy you share under this License.
+
+3. Commercial use requires written permission
+
+No Commercial Use is permitted under this License. Commercial deployment,
+managed hosting, paid integration, resale, paid support, business-internal use,
+or use connected to a paid product or service requires a separate written
+license from Reulink before use. Contact Contact@reulink.app to request such
+permission. Silence, a public repository, or access to source code is not
+permission for Commercial Use.
+
+4. Restrictions
+
+You may not remove or alter ownership, attribution, security, or governance
+notices. You may not claim endorsement by Reulink, Lotfi Mahiddine, or an
+external provider. You may not use Reulink names, logos, domains, or marks
+except for factual attribution required by this License. You may not use the
+Software to bypass the safeguards documented in the repository or to imply an
+unverified capability, benchmark, partnership, or security certification.
+
+5. Third-party components
+
+This License applies only to material owned by the Licensor. Third-party
+components remain subject to their own notices and licenses. Nothing in this
+License grants rights in third-party software, models, services, trademarks, or
+data.
+
+6. Termination
+
+Your rights under this License terminate automatically if you breach any term.
+Upon termination, you must stop using and distributing the Software and delete
+copies under your control, except where retention is required by law. Sections
+3 through 8 survive termination.
+
+7. No warranty
+
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTIES OF ANY
+KIND, EXPRESS, IMPLIED, OR STATUTORY, INCLUDING MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE, NON-INFRINGEMENT, SECURITY, OR AVAILABILITY. YOU USE IT AT
+YOUR OWN RISK.
+
+8. Limitation of liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSOR WILL NOT BE
+LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR
+PUNITIVE DAMAGES, OR FOR LOST PROFITS, DATA, BUSINESS, GOODWILL, OR SECURITY,
+ARISING FROM OR RELATED TO THE SOFTWARE OR THIS LICENSE.
+
+9. General
+
+If any provision is unenforceable, it will be enforced to the maximum extent
+permitted and the remaining provisions remain in effect. This License does not
+waive rights that cannot lawfully be waived. The Licensor may offer different
+terms in a separate written agreement.

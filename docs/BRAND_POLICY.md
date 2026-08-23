@@ -14,6 +14,11 @@ an AI model vendor, cloud provider, benchmark, or security organization. Public
 announcements must use the Reus name accurately, cite the official project
 website, and distinguish verified product behavior from future plans.
 
-Brand, licence, and repository-visibility decisions remain subject to founder
-approval. A public trademark policy may be published when the project opens for
-external contributions.
+Reus is publicly visible under the [Reulink Non-Commercial Community License
+1.0](../LICENSE). That license does not grant trademark rights. Commercial use
+of the Software or any use of Reulink marks beyond factual attribution requires
+separate written permission from Reulink at Contact@reulink.app.
+
+Brand, commercial licensing, domain, and major release decisions remain subject
+to founder approval. External contributors must follow the contribution,
+governance, security, and community standards published in this repository.

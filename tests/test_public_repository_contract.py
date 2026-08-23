@@ -14,6 +14,7 @@ PUBLIC_FILES = (
     "SECURITY.md",
     "GOVERNANCE.md",
     "SUPPORT.md",
+    "LICENSE",
     "LICENSE_STATUS.md",
     "CHANGELOG.md",
     "docs/ARCHITECTURE.md",
@@ -46,3 +47,13 @@ def test_readme_names_official_reulink_identity():
     assert "Lotfi Mahiddine" in readme
     assert "Reulink" in readme
     assert "https://reulink.app" in readme
+
+
+def test_license_is_explicitly_non_commercial_and_not_osi_open_source():
+    license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
+    status = (ROOT / "LICENSE_STATUS.md").read_text(encoding="utf-8")
+
+    assert "No Commercial Use is permitted" in license_text
+    assert "not an\nOpen Source Initiative (OSI) approved" in license_text
+    assert "not** an OSI-approved" in status
+    assert "Contact@reulink.app" in license_text

@@ -15,11 +15,14 @@ and under explicit human authority.
 
 ## Project status
 
-This repository is in a **private pre-publication phase**. The core is tested
-locally and the public contribution surface is being prepared, but the project
-has not yet selected an open-source licence or opened public contributions.
-See [LICENSE_STATUS.md](LICENSE_STATUS.md) before copying, redistributing, or
-using this code outside an authorized review.
+This repository is published for community review under the
+[Reulink Non-Commercial Community License 1.0](LICENSE). The core is tested
+locally and the public contribution surface is being prepared. The license
+allows non-commercial personal, educational, academic, non-profit research,
+evaluation, and private experimentation; it does not permit commercial use or
+commercial hosting without Reulink's written permission. This is not an
+OSI-approved open-source license. Read [LICENSE_STATUS.md](LICENSE_STATUS.md)
+before copying, redistributing, or using the code.
 
 ## Why Reus
 
@@ -67,7 +70,7 @@ Run the local quality gate with:
 bash scripts/run_local_quality.sh
 ```
 
-The most recently recorded local gate result was **503 passing tests and five
+The most recently recorded local gate result was **505 passing tests and five
 passing subtests. It intentionally excludes only integration checks requiring
 separately provisioned PostgreSQL, Redis, or Alembic services.
 
@@ -83,10 +86,10 @@ network exposure, cloud infrastructure, model training, or safety controls.
 
 ## Community preparation
 
-Reus welcomes rigorous engineering feedback once the project is opened for
-public contribution. Until a licence is selected and visibility is changed,
-please do not open pull requests or redistribute the repository. The intended
-standards are documented in [CONTRIBUTING.md](CONTRIBUTING.md) and
+Reus welcomes rigorous engineering feedback and non-commercial contributions
+that comply with the project license. Contributions are reviewed under the
+maintainer policy in [GOVERNANCE.md](GOVERNANCE.md). The intended standards are
+documented in [CONTRIBUTING.md](CONTRIBUTING.md) and
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ## Official identity

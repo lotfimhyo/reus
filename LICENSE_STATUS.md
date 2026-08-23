@@ -4,10 +4,14 @@
 **Founder:** Lotfi Mahiddine
 **Organization:** Reulink
 
-No open-source licence has been selected for this pre-publication repository.
-No permission is granted by this repository to copy, modify, redistribute, or
-offer Reus as a service outside a separately authorized review.
+Reus is distributed under the [Reulink Non-Commercial Community License 1.0](LICENSE).
+It permits personal, educational, academic, non-profit research, evaluation,
+and private experimentation. It does **not** permit commercial use, commercial
+hosting, resale, paid support, paid integration, business-internal use, or use
+connected to a paid product or service without a separate written agreement
+from Reulink.
 
-Before the repository becomes public or accepts external contributions, Reulink
-will select and publish an explicit licence and a compatible trademark/brand
-policy. Until that decision, this file is the authoritative licensing status.
+This is a source-available community license, **not** an OSI-approved
+open-source license. The license applies only to Reulink-owned material;
+third-party components retain their own license notices. Questions about a
+commercial license must be sent to Contact@reulink.app.
