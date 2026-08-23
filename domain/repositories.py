@@ -4,9 +4,10 @@
 # Contact: Contact@reulink.app
 
 """
-Repository Pattern: منفذ مجرد (Port) لا يعرف شيئًا عن آلية التخزين الفعلية.
-أي تطبيق (In-Memory الآن، Postgres/Redis لاحقًا) يجب أن يلتزم بهذه الواجهة
-بحيث تكون الوحدات قابلة للاستبدال دون المساس بطبقة التطبيق (Dependency Inversion).
+Repository pattern: an abstract port that is independent of the storage
+mechanism. Each implementation, whether in-memory or optional Postgres/Redis,
+must obey this interface so implementations remain replaceable without changing
+the application layer (dependency inversion).
 """
 from __future__ import annotations
 
@@ -17,7 +18,7 @@ from domain.entities import Agent
 
 class AgentNotFound(Exception):
     def __init__(self, agent_id: str):
-        super().__init__(f"لم يتم العثور على وكيل بالمعرّف: {agent_id}")
+        super().__init__(f"No agent was found for id: {agent_id}")
         self.agent_id = agent_id
 
 
