@@ -53,10 +53,11 @@ class CloudDeploymentManager:
         return self._config is not None
 
     def set_user_data(self, user_data: str) -> None:
-        """يُحدِّث سكربت user_data/cloud-init المُستخدَم في عملية `execute_
-        new_instance` التالية فقط — لا يُخزَّن كإعداد دائم في `configure()`،
-        حتى لا يتسرّب سكربت دور عقدة معيَّن (من `/deploy_node <role>`) لعملية
-        نشر تالية بدور مختلف تُستدعى دون تحديث صريح."""
+        """Updates the user_data/cloud-init script for the next
+        `execute_new_instance` call only. It is not stored as a durable
+        `configure()` setting, preventing a role-specific node script (from
+        `/deploy_node <role>`) from leaking into a later deployment with a
+        different role that lacks an explicit update."""
         if not self._config:
             raise CloudLimitExceeded("cloud provider not configured — use /configure_cloud first")
         self._config.user_data = user_data
