@@ -4,8 +4,9 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-نماذج حوكمة الاستقلالية. هذه النماذج تفصل تصميم القدرة وتجربتها عن قرار
-ترقيتها، حتى لا يتحول توليد وكيل جديد إلى تنفيذ غير خاضع للمراجعة.
+Autonomy-governance models. These models separate capability design and testing
+from the decision to promote it, preventing generated agents from becoming
+unreviewed execution paths.
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ class ProposalStatus(str, Enum):
 
 @dataclass(frozen=True)
 class GeneratedAgentDraft:
-    """مواصفة قدرة مصممة محلياً قبل أن تتحول إلى وكيل قابل للتشغيل."""
+    """A locally designed capability specification before it becomes runnable."""
 
     spec: AgentSpec
     tags: tuple[str, ...]
@@ -39,7 +40,7 @@ class GeneratedAgentDraft:
 
 @dataclass
 class ImprovementProposal:
-    """أثر تدقيق دائم لكل محاولة توسعة ذاتية."""
+    """A durable audit artifact for every attempted self-expansion."""
 
     proposal_id: str
     goal_id: str
@@ -53,7 +54,7 @@ class ImprovementProposal:
 
 @dataclass(frozen=True)
 class AutonomyPolicy:
-    """الحدود المعلنة للتوسع الذاتي؛ الافتراض دائماً هو عدم الترقية التلقائية."""
+    """Declared self-expansion limits; automatic promotion is disabled by default."""
 
     allow_agent_design: bool = True
     auto_promote_low_risk: bool = False
