@@ -16,9 +16,9 @@ from domain.workflow import TaskNode, TaskState, Workflow
 class TaskSpecRequest(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     agent_id: str | None = None
-    depends_on: list[str] = Field(default_factory=list)  # أسماء مهام أخرى ضمن نفس الطلب
+    depends_on: list[str] = Field(default_factory=list)  # Names of other tasks in the same request.
     max_retries: int = Field(default=0, ge=0, le=10)
-    payload: dict = Field(default_factory=dict)  # مثل {"prompt": "...", "required_capabilities": ["reasoning"]}
+    payload: dict = Field(default_factory=dict)  # Example: {"prompt": "...", "required_capabilities": ["reasoning"]}
 
 
 class CreateWorkflowRequest(BaseModel):
