@@ -4,9 +4,9 @@
 # Contact: Contact@reulink.app
 
 """
-اختبارات تكامل على PostgreSQL فعلي (لا Mock). تتطلب خادم Postgres يعمل محليًا
-(كما هو مُهيَّأ في هذه البيئة) بامتداد pgvector مُفعَّلًا. كل اختبار ينظّف بياناته بنفسه
-حتى لا تتراكم صفوف بين التشغيلات.
+Integration tests against real PostgreSQL, not mocks. They require a locally
+running Postgres server with pgvector enabled. Each test cleans up its own data
+to avoid rows accumulating between runs.
 """
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ def _memory_repo() -> PostgresMemoryRepository:
 
 @pytest.fixture(autouse=True)
 def clean_tables():
-    """يفرغ الجداول قبل كل اختبار وبعده لضمان عزل تام."""
+    """Empty tables before and after every test to guarantee isolation."""
     with new_session() as session:
         session.execute(delete(AgentTokenModel))
         session.execute(delete(MemoryRecordModel))
@@ -157,9 +157,9 @@ def test_memory_list_by_agent_excludes_deleted():
 
 def test_memory_content_is_actually_encrypted_on_disk():
     """
-    الاختبار الحاسم لـ Encryption at Rest: يتحقق من العمود الخام في قاعدة البيانات
-    مباشرة (وليس عبر PostgresMemoryRepository التي تفك التشفير تلقائيًا)، للتأكد
-    أن النص الحساس لا يُخزَّن صافيًا على القرص بأي شكل من الأشكال.
+    Critical encryption-at-rest test: inspect the raw database column directly,
+    not PostgresMemoryRepository which decrypts automatically, to verify that
+    sensitive text is never stored as plaintext on disk.
     """
     repo = _memory_repo()
     secret_plaintext = "رقم البطاقة السري: 4111-1111-1111-1111"
@@ -172,7 +172,7 @@ def test_memory_content_is_actually_encrypted_on_disk():
 
     assert secret_plaintext.encode("utf-8") not in raw_bytes
     assert b"4111" not in raw_bytes
-    # يبقى قابلًا لفك التشفير الصحيح عبر المستودع (الذي يملك EncryptionService)
+    # It remains decryptable through the repository, which holds EncryptionService.
     assert repo.get(record.memory_id).content == secret_plaintext
 
 
