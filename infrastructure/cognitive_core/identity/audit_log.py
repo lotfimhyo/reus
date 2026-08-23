@@ -7,7 +7,8 @@ Copyright: © Lotfi Mahiddine
 Architecture: Veritas AI
 
 AppendOnlyAuditLog: tamper-evident audit trail for every operation performed
-between layers, per the master architecture doc section 5: "سجل تدقيق كامل".
+between layers, per the master architecture document section 5: a complete
+audit log.
 
 Design decision (section 4 of the master architecture doc): JSONL + hash
 chaining was chosen over a full relational database for this phase, because
