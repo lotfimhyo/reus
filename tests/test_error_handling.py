@@ -4,13 +4,16 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-يثبت معالجات الأخطاء الشاملة في api/main.py (لم تكن مغطاة باختبار مخصَّص
-سابقًا، فقط بفحص يدوي أثناء التطوير):
-- كل استجابة، ناجحة أو فاشلة، تحمل X-Request-ID للربط بسجلات الخادم.
-- خطأ تحقق (422) يُعاد بشكل موحَّد مع بقية الواجهة (`detail` نصي)، لا شكل
-  Pydantic الافتراضي المختلف تمامًا.
-- استثناء غير مُلتقَط صراحة في أي مسار لا يُسرِّب أي تفصيل داخلي في
-  الاستجابة، لكنه يُسجَّل خادميًا كاملًا مع نفس request_id للتشخيص.
+Proves the global error handlers in api/main.py (which previously had no
+dedicated test and were only checked manually during development):
+- Every response, successful or failed, carries X-Request-ID to correlate with
+  server logs.
+- A validation error (422) is returned in a shape consistent with the rest of
+  the API (`detail` is a string), rather than Pydantic's completely different
+  default shape.
+- An unhandled exception on any route leaks no internal details in the
+  response, but is fully logged server-side with the same request_id for
+  diagnosis.
 """
 from __future__ import annotations
 
@@ -28,7 +31,7 @@ class TestErrorEnvelope(unittest.TestCase):
     def test_every_response_carries_a_request_id_header(self):
         response = self.client.get("/health")
         self.assertIn("X-Request-ID", response.headers)
-        # يجب أن يكون uuid4 صالحًا شكليًا، لا نصًا عشوائيًا
+        # It must be structurally valid uuid4 data, not arbitrary text.
         import uuid
 
         uuid.UUID(response.headers["X-Request-ID"])
@@ -42,8 +45,8 @@ class TestErrorEnvelope(unittest.TestCase):
         config.get_settings.cache_clear()
 
         try:
-            # /chat يتطلب حقل prompt؛ إرسال جسم فارغ (بمفتاح صحيح، حتى يصل
-            # الطلب فعليًا لمرحلة تحقق الجسم) يُفجِّر تحقق Pydantic (422)
+            # /chat requires a prompt field. Sending an empty body with a valid
+            # key lets the request reach Pydantic body validation (422).
             response = self.client.post("/chat", json={}, headers={"x-api-key": "test-key"})
             self.assertEqual(response.status_code, 422)
             body = response.json()
