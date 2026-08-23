@@ -39,8 +39,8 @@ def reset_container():
 
 def test_summary_and_events_via_running_app():
     """
-    يستخدم `with client:` عمدًا لتشغيل lifespan فعليًا (وهو ما يبدأ تسجيل الأحداث)،
-    بعكس بقية اختبارات API في هذا المشروع التي لا تحتاج ذلك.
+    Intentionally uses `with client:` to start the real lifespan, which begins
+    event recording, unlike the other API tests in this project that do not need it.
     """
     with TestClient(app) as client:
         reg = client.post("/agents", json={"name": "obs-agent", "permissions": [], "goals": []}, headers=HEADERS)
@@ -48,10 +48,10 @@ def test_summary_and_events_via_running_app():
 
         summary = client.get("/observability/summary", headers=HEADERS)
         assert summary.status_code == 200
-        # 2 لا 1: هذا الاختبار يُشغِّل lifespan الحقيقي عمدًا (with client:)،
-        # فيتضمن الوكيل الافتراضي المبذور تلقائيًا عند الإقلاع
-        # (infrastructure/seed_default_agent.py) بالإضافة إلى obs-agent
-        # المسجَّل هنا صراحة.
+        # 2, not 1: this test intentionally starts the real lifespan with
+        # `with client:`, which includes the default agent seeded on startup
+        # (infrastructure/seed_default_agent.py) as well as obs-agent
+        # registered explicitly here.
         assert summary.json()["agents_total"] == 2
 
         events = client.get("/observability/events", headers=HEADERS)
