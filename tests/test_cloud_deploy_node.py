@@ -90,7 +90,7 @@ class TestCloudDeployNode(unittest.TestCase):
         self._configure_cloud()
         reply = self.telegram.handle_incoming_message(self.admin_chat_id, "/deploy_node no-such-role")
         self.assertEqual(reply, "✅")
-        self.assertTrue(any("الأدوار المتاحة" in text for _, text in self.sent_messages))
+        self.assertTrue(any("Available roles" in text for _, text in self.sent_messages))
         self.assertEqual(len(self.fake_provider.created), 0)
 
     def test_deploy_refuses_without_source_fetch_cmd_configured(self):
@@ -99,7 +99,7 @@ class TestCloudDeployNode(unittest.TestCase):
         self.assertTrue(any("source_fetch_cmd" in text for _, text in self.sent_messages))
         reply = self.telegram.handle_incoming_message(self.admin_chat_id, "/deploy_node text-node")
         self.assertEqual(reply, "✅")
-        self.assertTrue(any("السحابة غير مضبوطة بعد" in text for _, text in self.sent_messages))
+        self.assertTrue(any("Cloud is not configured yet" in text for _, text in self.sent_messages))
         self.assertEqual(len(self.fake_provider.created), 0)
 
     def test_full_deploy_flow_generates_real_cloud_init_and_creates_instance(self):
@@ -110,7 +110,7 @@ class TestCloudDeployNode(unittest.TestCase):
         self.assertEqual(reply1, "✅")
 
         approval_text = next(text for _, text in self.sent_messages if text.startswith("⚠️"))
-        self.assertIn("الدور: text-node", approval_text)
+        self.assertIn("Role: text-node", approval_text)
         self.assertIn("http://10.0.0.1:8080", approval_text)
         approval_id = approval_text.split("[")[1].split("]")[0]
 
@@ -125,7 +125,7 @@ class TestCloudDeployNode(unittest.TestCase):
         self.assertIn("git clone https://example.com/reus.git /opt/reus", user_data)
         self.assertIn("systemctl enable --now reus-node.service", user_data)
 
-        self.assertTrue(any("تم النشر" in text and "text-node" in text for _, text in self.sent_messages))
+        self.assertTrue(any("Deployed:" in text and "text-node" in text for _, text in self.sent_messages))
 
     def test_deploy_without_seed_url_provider_creates_standalone_node(self):
         self._configure_cloud()
@@ -133,7 +133,7 @@ class TestCloudDeployNode(unittest.TestCase):
 
         self.telegram.handle_incoming_message(self.admin_chat_id, "/deploy_node cipher-node")
         approval_text = next(text for _, text in self.sent_messages if text.startswith("⚠️"))
-        self.assertIn("مستقلة", approval_text)
+        self.assertIn("independent node", approval_text)
         approval_id = approval_text.split("[")[1].split("]")[0]
         self.telegram.handle_incoming_message(self.admin_chat_id, f"/approve {approval_id}")
 

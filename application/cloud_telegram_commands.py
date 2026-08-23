@@ -3,19 +3,16 @@
 # Organization: Reulink
 # Contact: Contact@reulink.app
 
-"""
-CloudTelegramCommands: يربط CloudDeploymentManager بـ TelegramService كأوامر
-/configure_cloud، /deploy_node، /list_nodes، /destroy_node — كلها أوامر
-إدارية (register_admin_command) لا تصل إلا من محادثة ضمن admin_chat_ids.
+"""Connect `CloudDeploymentManager` to Telegram administrative commands:
+`/configure_cloud`, `/deploy_node`, `/list_nodes`, and `/destroy_node`.
 
-كل إجراء يُنشئ أو يُدمّر بنية تحتية فوترة يمرّ عبر نفس بوابة الموافقة
-(TelegramService.request_approval) — لا شيء يُنشأ أو يُدمَّر دون /approve
-صريح من محادثة إدارية مصرَّح لها، فوق حدي max_instances/budget_cap
-المفروضين في CloudDeploymentManager نفسه قبل أي اقتراح.
+Every infrastructure-creating or -destroying operation passes through the same
+approval gate. Nothing is created or destroyed without an explicit `/approve`
+from an allowed administrative chat, in addition to the manager's
+`max_instances` and `budget_cap` constraints.
 
-مصدر المزوّد والتوكن والحدود القصوى: فقط عبر /configure_cloud من المطوّر —
-لا يكتشفها أو يختارها النظام نفسه أبدًا. هذا القرار منقول كما هو من
-Project Phoenix دون تخفيف.
+The provider, token, and limits come only from the developer through
+`/configure_cloud`; Reus never discovers or chooses them autonomously.
 """
 from __future__ import annotations
 
@@ -37,11 +34,11 @@ _PROVIDERS: Dict[str, Type[CloudProvider]] = {
 }
 
 _CONFIGURE_USAGE = (
-    "الاستخدام: /configure_cloud provider=digitalocean token=<token> region=nyc3 "
+    "Usage: /configure_cloud provider=digitalocean token=<token> region=nyc3 "
     "size=s-1vcpu-1gb max_instances=2 budget_cap=20 "
     'source_fetch_cmd="git clone https://.../reus.git /opt/reus"\n'
-    "(source_fetch_cmd إلزامي — كيف يصل كود Reus لخادم سحابي فارغ. استخدم علامتي "
-    "اقتباس حول القيمة إن احتوت مسافات.)"
+    "(source_fetch_cmd is required: it defines how Reus source reaches an empty cloud server. "
+    "Quote the value when it contains spaces.)"
 )
 
 
@@ -88,7 +85,7 @@ class CloudTelegramCommands:
             parsed = dict(kv.split("=", 1) for kv in shlex.split(args))
             provider_name = parsed["provider"].lower()
             if provider_name not in _PROVIDERS:
-                self._send(chat_id, f"مزوّد غير معروف '{provider_name}'. المدعوم: {sorted(_PROVIDERS)}")
+                self._send(chat_id, f"Unknown provider '{provider_name}'. Supported: {sorted(_PROVIDERS)}")
                 return
             source_fetch_cmd = parsed["source_fetch_cmd"]
             config = CloudConfig(
@@ -110,7 +107,7 @@ class CloudTelegramCommands:
         self._source_fetch_cmd = source_fetch_cmd
         self._publish(
             "cloud.configured",
-            {  # لا يُنشَر التوكن نفسه في الحدث إطلاقًا — فقط بيانات غير حسّاسة
+            {  # Never publish the token itself; only non-sensitive metadata.
                 "provider": provider_name,
                 "region": config.region,
                 "max_instances": config.max_instances,
@@ -119,22 +116,22 @@ class CloudTelegramCommands:
         )
         self._send(
             chat_id,
-            f"تم ضبط السحابة: {provider_name}، المنطقة={config.region}، الحجم={config.size}، "
-            f"حد أقصى {config.max_instances} عقدة، سقف ${config.budget_cap_usd_per_month:.2f}/شهر.\n"
-            f"ملاحظة: توكن الـ API أُرسل في هذه المحادثة — تعامل معه كسرّ حساس، ويمكنك "
-            f"إلغاءه/تدويره من لوحة {provider_name} في أي وقت.",
+            f"Cloud configured: {provider_name}, region={config.region}, size={config.size}, "
+            f"maximum {config.max_instances} nodes, budget cap ${config.budget_cap_usd_per_month:.2f}/month.\n"
+            f"Note: the API token was sent in this chat. Treat it as sensitive and revoke or rotate it "
+            f"from the {provider_name} dashboard at any time.",
         )
 
     def _cmd_deploy(self, chat_id: str, args: str) -> None:
         if not self._manager:
-            self._send(chat_id, "السحابة غير مضبوطة بعد. استخدم /configure_cloud أولًا.")
+            self._send(chat_id, "Cloud is not configured yet. Use /configure_cloud first.")
             return
 
         parts = args.split(maxsplit=1)
         if not parts or parts[0] not in NODE_ROLES:
             self._send(
                 chat_id,
-                f"الاستخدام: /deploy_node <role_id> [name]\nالأدوار المتاحة: {sorted(NODE_ROLES)}",
+                f"Usage: /deploy_node <role_id> [name]\nAvailable roles: {sorted(NODE_ROLES)}",
             )
             return
         role_id = parts[0]
@@ -144,11 +141,11 @@ class CloudTelegramCommands:
             proposal = self._manager.propose_new_instance(name)
         except CloudLimitExceeded as e:
             self._publish("cloud.deploy_rejected", {"name": name, "role_id": role_id, "reason": str(e)})
-            self._send(chat_id, f"رُفض النشر: {e}")
+            self._send(chat_id, f"Deployment rejected: {e}")
             return
 
         if not self._source_fetch_cmd:
-            self._send(chat_id, "لم يُضبَط source_fetch_cmd بعد. أعد /configure_cloud بتضمينه.")
+            self._send(chat_id, "source_fetch_cmd is not configured. Run /configure_cloud again and include it.")
             return
 
         seed_url = self._seed_bootstrap_url_provider() if self._seed_bootstrap_url_provider else None
@@ -157,17 +154,17 @@ class CloudTelegramCommands:
                 role_id=role_id, source_fetch_cmd=self._source_fetch_cmd, seed_bootstrap_url=seed_url
             )
         except ValueError as e:
-            self._send(chat_id, f"تعذّر توليد سكربت الإقلاع: {e}")
+            self._send(chat_id, f"Startup script could not be generated: {e}")
             return
 
         approval_id = f"deploy-{uuid.uuid4().hex[:8]}"
-        seed_note = f"\nستنضم تلقائيًا للعنقود عبر: {seed_url}" if seed_url else "\nستُنشَر كعقدة مستقلة (بلا عنقود موجود لتنضم إليه الآن)."
+        seed_note = f"\nIt will join the cluster automatically through: {seed_url}" if seed_url else "\nIt will be deployed as an independent node because no cluster bootstrap is available."
         self._service.request_approval(
             chat_id,
             approval_id,
-            f"{proposal.describe()}\nالدور: {role_id}{seed_note}",
+            f"{proposal.describe()}\nRole: {role_id}{seed_note}",
             on_approve=lambda: self._execute_deploy(chat_id, name, role_id, cloud_init_script),
-            on_reject=lambda: self._send(chat_id, f"أُلغي نشر '{name}'."),
+            on_reject=lambda: self._send(chat_id, f"Deployment of '{name}' was cancelled."),
         )
 
     def _execute_deploy(self, chat_id: str, name: str, role_id: str, cloud_init_script: str) -> None:
@@ -186,14 +183,14 @@ class CloudTelegramCommands:
             )
             self._send(
                 chat_id,
-                f"تم النشر: {instance.name} ({instance.id}) دور={role_id} على {instance.provider}، "
-                f"الحالة={instance.status}، ~${instance.monthly_cost_usd:.2f}/شهر",
+                f"Deployed: {instance.name} ({instance.id}) role={role_id} on {instance.provider}, "
+                f"status={instance.status}, ~${instance.monthly_cost_usd:.2f}/month",
             )
         except Exception as e:  # noqa: BLE001
             self._publish("cloud.deploy_failed", {"name": name, "role_id": role_id, "error": str(e)})
-            self._send(chat_id, f"فشل النشر: {e}")
+            self._send(chat_id, f"Deployment failed: {e}")
         finally:
-            self._manager.set_user_data("")  # إعادة ضبط بعد كل عملية نشر — لا يتسرّب لعملية تالية
+            self._manager.set_user_data("")  # Reset after every deployment; never leak to the next one.
 
     def _cmd_list(self, chat_id: str, args: str) -> None:
         if not self._manager:
