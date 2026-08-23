@@ -3,10 +3,11 @@
 # Organization: Reulink
 # Contact: Contact@reulink.app
 
-"""
-TaskExecutor Port: يحدد "كيف تُنفَّذ مهمة فعليًا" دون أن يعرف OrchestratorService
-أو TaskWorker أي تفاصيل عن ذلك (Plugin Architecture). أي منطق تنفيذ مستقبلي
-(استدعاء نموذج، أداة خارجية، خط أنابيب بيانات) يُطبَّق هنا فقط.
+"""TaskExecutor port defining how a task runs without exposing execution
+details to `OrchestratorService` or `TaskWorker`.
+
+Future model calls, external tools, and data pipelines implement this plugin
+boundary only.
 """
 from __future__ import annotations
 
@@ -17,11 +18,13 @@ from domain.workflow import TaskNode
 
 
 class TaskExecutionError(Exception):
-    """تُرفع عند فشل تنفيذ مهمة لأي سبب (وكيل مفقود، صلاحية منقوصة، خطأ داخلي)."""
+    """Raised when task execution fails, including missing agents, insufficient
+    permissions, or internal errors."""
 
 
 class TaskExecutor(ABC):
     @abstractmethod
     def execute(self, task: TaskNode) -> Any:
-        """ينفّذ المهمة ويُعيد نتيجة قابلة للتسلسل (JSON-serializable)، أو يرفع TaskExecutionError."""
+        """Execute a task and return a JSON-serializable result or raise
+        `TaskExecutionError`."""
         ...
