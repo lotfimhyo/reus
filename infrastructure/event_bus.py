@@ -4,9 +4,9 @@
 # Contact: Contact@reulink.app
 
 """
-Event Bus: تطبيق Event-Driven Architecture.
-كل حدث في النظام (إنشاء وكيل، تغيير حالة...) يُنشر هنا، ويُسجَّل تلقائيًا
-في السجلات المهيكلة (متطلب الأمان: "تسجل الأحداث").
+Event bus: an event-driven architecture component. Every system event, such as
+agent creation or a state change, is published here and automatically recorded
+in structured logs to preserve the event-recording security requirement.
 """
 from __future__ import annotations
 
@@ -39,11 +39,9 @@ class EventBus(ABC):
 
 
 class InMemoryEventBus(EventBus):
-    """
-    تطبيق داخل العملية الواحدة (In-Process Pub/Sub).
-    قابل للاستبدال لاحقًا بناقل Redis Pub/Sub لدعم التوزيع متعدد العُقد
-    دون أي تغيير في طبقة التطبيق، لأن الواجهة (EventBus) لا تتغير.
-    """
+    """Single-process in-memory Pub/Sub implementation. A Redis Pub/Sub bus
+    can later replace it for multi-node distribution without application-layer
+    changes because the EventBus interface remains the same."""
 
     def __init__(self) -> None:
         self._subscribers: dict[str, list[Subscriber]] = defaultdict(list)
