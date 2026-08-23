@@ -61,8 +61,8 @@ def _make_lifespan(*, start_background_workers: bool):
 
         settings = get_settings()
 
-        # تسجيل الأحداث للوحة المراقبة يبدأ دائمًا، بصرف النظر عن تفعيل العامل
-        # التلقائي — رخيص، ولا يعالج أحداثًا مكرَّرة حتى لو عملية عامة أيضًا.
+        # Start observability for every application form. It is inexpensive and
+        # does not process duplicate events even when a public process also runs.
         get_observability_service().start()
 
         worker = None
@@ -107,16 +107,15 @@ def _make_lifespan(*, start_background_workers: bool):
             if settings.telegram_enabled:
                 from container import get_telegram_polling_worker, get_telegram_service
 
-                get_telegram_service().start()  # يبدأ الاشتراك في نتائج المهام لتوصيلها لاحقًا
+                get_telegram_service().start()  # Subscribe to task results for later delivery.
                 telegram_worker = get_telegram_polling_worker()
                 telegram_worker.start()
                 logger.info("telegram_enabled_on_startup", extra={"event_name": "telegram_enabled_on_startup"})
 
                 if settings.ollama_enabled:
-                    # يسجّل /model_status، /promote_model، /demote_model. يحدث هنا
-                    # (لا داخل get_telegram_service نفسها) عمدًا — انظر التعليق في
-                    # container.py: استدعاؤها من داخل get_telegram_service يسبب
-                    # استدعاءً دائريًا حقيقيًا عبر lru_cache غير المكتمل بعد.
+                    # Register model status and promotion commands here rather
+                    # than inside get_telegram_service: that call path would
+                    # create a real cycle through an incomplete lru_cache.
                     from container import get_model_promotion_service
 
                     get_model_promotion_service()
@@ -140,7 +139,7 @@ def _make_lifespan(*, start_background_workers: bool):
             from container import stop_cluster_worker_runtime
 
             stop_cluster_worker_runtime()
-        # عند الإغلاق: يُغلق ناقل الأحداث بأمان (مهم لـ RedisEventBus التي تُشغّل خيط استماع بالخلفية)
+        # Close the event bus safely at shutdown, including Redis listener threads.
         bus = get_event_bus()
         if hasattr(bus, "close"):
             bus.close()
@@ -149,9 +148,8 @@ def _make_lifespan(*, start_background_workers: bool):
 
 
 def _install_common_middleware_and_handlers(app: FastAPI) -> None:
-    """يُثبَّت على كل تطبيق (app/public_app/admin_app) بلا استثناء — سجلّ
-    الطلبات، request_id، ومعالجات الأخطاء الموحَّدة يجب أن تعمل بصرف النظر
-    عن أي مجموعة مسارات تخدمها هذه العملية بالتحديد."""
+    """Install request logging, request IDs, and unified error handlers on
+    every application form regardless of the route group it serves."""
 
     @app.middleware("http")
     async def request_metrics_middleware(request: Request, call_next):
@@ -161,9 +159,9 @@ def _install_common_middleware_and_handlers(app: FastAPI) -> None:
         request.state.request_id = request_id
         start = time.perf_counter()
 
-        # فحص Content-Length قبل تحليل JSON يمنع حجز ذاكرة كبيرة للطلبات
-        # الواضحة الرفض. الطلبات chunked تبقى تحت مسؤولية خادم ASGI/proxy،
-        # لذلك يجب ضبط حد مماثل في طبقة البوابة عند نشر الإنتاج.
+        # Check Content-Length before JSON parsing to avoid allocating large
+        # memory for clearly rejectable requests. Chunked requests remain the
+        # ASGI server or proxy responsibility and need an equivalent gateway limit.
         from config import get_settings
         settings = get_settings()
         content_length = request.headers.get("content-length")
@@ -207,9 +205,8 @@ def _install_common_middleware_and_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-        """يُبقي شكل `detail` كما هو تمامًا (كل نقاط النهاية القائمة تعتمد عليه) —
-        يُضيف `request_id` فقط للربط بسجلات الخادم، لا يُغيّر أي حقل موجود.
-        هذا إضافي بحت (Additive)، لا كسر توافق."""
+        """Preserve the existing `detail` shape and add only `request_id` for
+        server-log correlation, without changing compatibility fields."""
         return JSONResponse(
             status_code=exc.status_code,
             content={"detail": exc.detail, "request_id": getattr(request.state, "request_id", None)},
@@ -218,10 +215,8 @@ def _install_common_middleware_and_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
-        """FastAPI الافتراضي لأخطاء التحقق (422) يُعيد شكلًا مختلفًا تمامًا عن
-        أخطاء HTTPException (`detail` كقائمة كائنات، لا نص). هذا يُوحِّد الشكل:
-        رسالة نصية موجزة في `detail` (لا كسر لعملاء يتوقعون نصًا)، مع تفاصيل
-        كل حقل فشل في `errors` لمن يحتاج تفصيلًا برمجيًا، وrequest_id للربط."""
+        """Normalize FastAPI 422 responses with a concise text `detail`, rich
+        field failures in `errors`, and a correlation `request_id`."""
         return JSONResponse(
             status_code=422,
             content={
@@ -233,9 +228,8 @@ def _install_common_middleware_and_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-        """شبكة أمان أخيرة لأي استثناء لم يُلتقَط صراحة في أي مسار. لا يُسرَّب أي
-        تفصيل داخلي في الاستجابة (رسالة عامة ثابتة فقط) — لكن الاستثناء الكامل
-        بسجل الاستدعاء يُسجَّل خادميًا مع request_id للتشخيص."""
+        """Final safety net: return only a stable public message while logging
+        full diagnostics server-side with the correlation request ID."""
         request_id = getattr(request.state, "request_id", None)
         logger.exception(
             "unhandled_exception",
@@ -248,15 +242,13 @@ def _install_common_middleware_and_handlers(app: FastAPI) -> None:
 
     @app.get("/health")
     def health() -> dict:
-        """فحص حيوية رخيص (Liveness) — لا يفحص أي تبعية خارجية عمدًا، يجب أن يبقى
-        فوريًا ورخيصًا لاستخدامه من مُجدوِل حاويات (kubernetes liveness probe)."""
+        """Fast liveness check that intentionally avoids external dependencies."""
         return {"status": "ok", "service": "reus-veritas-os"}
 
     @app.get("/ready")
     def ready() -> dict:
-        """فحص جهوزية حقيقي (Readiness) — يتحقق فعليًا من كل تبعية خارجية مُفعَّلة
-        (قاعدة البيانات، Redis) قبل الإعلان عن الجهوزية، بدل الاكتفاء برد ثابت.
-        يُعيد 503 صراحة إن كانت أي تبعية مُفعَّلة غير قابلة للوصول."""
+        """Readiness check that probes enabled database and Redis dependencies
+        and returns 503 explicitly when any configured dependency is unavailable."""
         from fastapi import HTTPException
 
         from config import get_settings
@@ -274,7 +266,7 @@ def _install_common_middleware_and_handlers(app: FastAPI) -> None:
                 with get_engine().connect() as conn:
                     conn.execute(text("SELECT 1"))
                 checks["database"] = "ok"
-            except Exception as exc:  # noqa: BLE001 — أي خطأ اتصال يعني عدم الجهوزية
+            except Exception as exc:  # noqa: BLE001 - any connection error means not ready
                 checks["database"] = f"unreachable: {exc}"
                 all_ok = False
         else:
@@ -305,13 +297,9 @@ def _install_public_routes(app: FastAPI) -> None:
 
     @app.get("/app")
     def user_app() -> FileResponse:
-        """
-        يخدم واجهة الويب العامة للمستخدمين (محادثة مباشرة مع Reus عبر /chat).
-        منفصلة عمدًا عن /dashboard: لا تعرض أي بيانات تشغيلية داخلية (وكلاء،
-        مهام، سجلّات، تكلفة سحابية)، ولا تستخدم مفتاح API الإداري — فقط
-        user_api_key المخصَّص لهذا المسار بالتحديد (انظر infrastructure/
-        security.py: verify_user_api_key).
-        """
+        """Serve the public chat interface. It is deliberately separate from
+        `/dashboard`, exposes no operational data, and uses only the dedicated
+        user API key rather than the administrative key."""
         return FileResponse(_STATIC_DIR / "app.html")
 
 
@@ -338,15 +326,9 @@ def _install_admin_routes(app: FastAPI) -> None:
 
     @app.get("/dashboard")
     def dashboard() -> FileResponse:
-        """
-        يخدم لوحة التحكم والمراقبة (صفحة HTML/JS واحدة). لا تحتاج مصادقة بحد ذاتها
-        (مجرد ملف ثابت)؛ المصادقة تتم من متصفح المستخدم عبر X-API-Key عند استدعاء
-        نقاط النهاية الفعلية (يُدخله المستخدم مرة واحدة، يُحفظ في localStorage للمتصفح فقط).
-
-        هذه الصفحة **للمطوّرين/الإدارة** (تعرض بيانات تشغيلية داخلية) — واجهة
-        المستخدمين العامة منفصلة تمامًا وغائبة عن هذا التطبيق كليًا إن شُغِّل
-        admin_app بمفرده، انظر _install_public_routes أعلاه.
-        """
+        """Serve the developer and operations dashboard static page. Its API
+        requests use an `X-API-Key` entered in the browser; the public user
+        interface remains separate and is absent from standalone `admin_app`."""
         return FileResponse(_STATIC_DIR / "dashboard.html")
 
 
@@ -359,8 +341,8 @@ def create_app(*, include_public: bool = True, include_admin: bool = True) -> Fa
         title="Reus-Veritas OS" + title_suffix,
         description="A local-first, human-governed distributed AI system.",
         version="0.5.0",
-        # عمّال الخلفية (المهام، تلغرام، التقرير اليومي) هم مسؤولية admin_app/app
-        # فقط — انظر توثيق الوحدة أعلاه لسبب عدم تشغيلهم في public_app المستقل.
+        # Background workers belong only to admin_app or the combined app; see
+        # the module documentation for why standalone public_app does not start them.
         lifespan=_make_lifespan(start_background_workers=include_admin),
     )
 
@@ -373,12 +355,12 @@ def create_app(*, include_public: bool = True, include_admin: bool = True) -> Fa
     return app
 
 
-# التطبيق الافتراضي: كل شيء معًا، نفس السلوك الحالي تمامًا — صفر تغيير لأي
-# نشر قائم (docker-compose.yml بخدمة `api` واحدة، run.sh، CI، كل الاختبارات).
+# Default application: both route groups together, preserving existing single
+# API service deployments, startup scripts, CI, and tests.
 app = create_app()
 
-# للنشر بفصل شبكي فعلي (انظر docker-compose.yml بروفايل "split"):
-#   uvicorn api.main:public_app --port 8000   # مكشوف للإنترنت
-#   uvicorn api.main:admin_app  --port 8001   # داخلي فقط (VPN/جدار ناري)
+# For actual network separation, use the docker-compose "split" profile:
+#   uvicorn api.main:public_app --port 8000   # Internet-facing
+#   uvicorn api.main:admin_app  --port 8001   # Internal only, behind VPN or firewall
 public_app = create_app(include_admin=False)
 admin_app = create_app(include_public=False)
