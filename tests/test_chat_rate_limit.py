@@ -4,10 +4,10 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-يثبت: InMemoryRateLimiter (نافذة متحركة حقيقية، لا نافذة ثابتة)، وتكامله
-الفعلي في /chat — بما في ذلك ترتيب حرج أمنيًا: تحديد المعدل يُطبَّق قبل
-التحقق من مفتاح API، لا بعده، حتى تُحتسَب محاولات تخمين المفتاح الفاشلة
-ضمن الحد بدل أن تُتاح بلا حدود.
+Proves InMemoryRateLimiter (a real sliding window, not a fixed window) and its
+actual integration into /chat. This includes a security-critical ordering: rate
+limiting runs before API-key validation, not after, so failed key-guessing
+attempts consume the limit rather than being available without bounds.
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ class TestInMemoryRateLimiter(unittest.TestCase):
         limiter = InMemoryRateLimiter(max_requests=1, window_seconds=60)
         self.assertTrue(limiter.allow("client-a")[0])
         self.assertFalse(limiter.allow("client-a")[0])
-        # مفتاح مختلف يجب ألا يتأثر إطلاقًا بحد المفتاح الأول
+        # A different key must not be affected by the first key's limit.
         self.assertTrue(limiter.allow("client-b")[0])
 
     def test_retry_after_is_reported_when_blocked(self):
@@ -41,8 +41,8 @@ class TestInMemoryRateLimiter(unittest.TestCase):
         self.assertLessEqual(retry_after, 60)
 
     def test_sliding_window_actually_slides_not_fixed_bucket(self):
-        """نافذة متحركة حقيقية: بعد انتهاء صلاحية أقدم طلب، يُسمح بطلب جديد
-        فورًا (لا تنتظر بداية \"دقيقة تالية\" ثابتة كما في نافذة ثابتة ساذجة)."""
+        """A real sliding window: once the oldest request expires, a new one
+        is allowed immediately rather than waiting for a naive fixed next minute."""
         limiter = InMemoryRateLimiter(max_requests=1, window_seconds=0.2)
         self.assertTrue(limiter.allow("client-a")[0])
         self.assertFalse(limiter.allow("client-a")[0])
@@ -110,17 +110,17 @@ class TestChatEndpointRateLimit(unittest.TestCase):
         self.assertIn("Retry-After", response.headers)
 
     def test_rate_limit_applies_even_to_failed_auth_attempts(self):
-        """الاختبار الحرج أمنيًا: محاولات مفتاح API خاطئ يجب أن تُستنفَد من
-        نفس حد المعدل أيضًا — وإلا كان تحديد المعدل بلا معنى ضد تخمين مفتاح
-        بمحاولات غير محدودة قبل الوصول لأي طلب صحيح."""
+        """Security-critical test: wrong API-key attempts must consume the same
+        rate limit. Otherwise rate limiting is meaningless against unlimited key
+        guessing before any valid request is reached."""
         for _ in range(3):
             response = self.client.post(
                 "/chat", json={"prompt": "x"}, headers={"x-api-key": "wrong-key"}
             )
             self.assertEqual(response.status_code, 401)
 
-        # الطلب الرابع (بمفتاح صحيح هذه المرة) يجب أن يُحظَر بـ429 لأن
-        # المحاولات الثلاث الفاشلة السابقة استهلكت الحد فعليًا.
+        # The fourth request, now with a valid key, must be blocked with 429
+        # because the three preceding failed attempts consumed the limit.
         response = self._post()
         self.assertEqual(response.status_code, 429)
 
