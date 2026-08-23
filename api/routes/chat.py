@@ -49,20 +49,18 @@ def chat(
     request: Request,
     executor: TaskExecutor = Depends(get_task_executor),
 ) -> ChatResponse:
-    """نقطة الدخول الوحيدة لواجهة الويب العامة: يُنشئ TaskNode مباشرة (بلا
-    عبور آلة حالة workflow كاملة — غير ضروري لمحادثة عديمة الحالة) ويُنفِّذه
-    فورًا عبر أي منفّذ يدعم فعليًا محادثة نصية حرة بلا وكيل مُسجَّل (Ollama أو
-    النماذج الثانوية عبر model_router — حسب REUS_TASK_EXECUTOR). ملاحظة: منفِّذ
-    "cognitive" لا يدعم هذا المسار رغم أنه أحد قيم REUS_TASK_EXECUTOR الصالحة —
-    يتطلب required_capability_name/required_tags في الحمولة، وهو ما لا يُسنِده
-    /chat أبدًا (اكتُشِف بالتشغيل الحي الفعلي، لا افتراضًا).
+    """Public web entry point for free-text chat. It creates a `TaskNode`
+    directly instead of traversing a full workflow state machine, then executes
+    it through an executor that actually supports agentless chat, such as
+    Ollama or `model_router` according to `REUS_TASK_EXECUTOR`.
 
-    تنبيه تشغيلي مُتحقَّق منه فعليًا: REUS_TASK_EXECUTOR الافتراضي في
-    config.py هو "default" (DefaultTaskExecutor)، وهو **لا يدعم /chat**
-    — يتطلب وكيلًا مُسجَّلًا مسبقًا لكل مهمة، بينما هذا المسار لا يُسنِد
-    أي agent_id عمدًا. نشر بلا ضبط REUS_TASK_EXECUTOR صراحة يُنتج 502 على
-    كل طلب /chat؛ الرسالة المُعادة من DefaultTaskExecutor في هذه الحالة
-    تحديدًا (انظر infrastructure/default_task_executor.py) تشرح الحل."""
+    The `cognitive` executor is a valid configuration value but does not serve
+    this route because it requires capability metadata that `/chat` deliberately
+    does not assign. The default `DefaultTaskExecutor` also does not support
+    `/chat`, because it requires a registered agent for every task. Operators
+    must explicitly configure a compatible executor; otherwise this endpoint
+    returns 502 with a safe availability message.
+    """
     task = TaskNode(name="web_chat", payload={"prompt": body.prompt, "system": body.system})
     try:
         result = executor.execute(task)
@@ -86,11 +84,12 @@ def stream_chat(
     request: Request,
     executor: TaskExecutor = Depends(get_task_executor),
 ) -> StreamingResponse:
-    """بث حالة التنفيذ ثم الاستجابة الفعلية عبر SSE.
+    """Stream execution state and the final response through SSE.
 
-    لا يدعي هذا المسار بثاً رمزياً إذا كان المنفذ لا يدعمه؛ يضمن بدلاً من ذلك
-    قناة streaming حقيقية تتقدم من حدث قبول الطلب إلى حدث النتيجة الموحدة.
-    يمكن استبدال المنفذ لاحقاً بمنفذ token-streaming دون تغيير عقد الأحداث.
+    This endpoint does not claim token streaming when the executor cannot
+    provide it. It guarantees a real stream from request acceptance to a
+    normalized result event and can later use a token-streaming executor without
+    changing the event contract.
     """
 
     request_id = getattr(request.state, "request_id", None)
