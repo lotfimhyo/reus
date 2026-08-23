@@ -75,40 +75,40 @@ class ClusterTelegramCommands:
         for chat_id in self._admin_chat_ids:
             self._send(
                 chat_id,
-                f"🔔 طلب انضمام عقدة جديدة للعنقود:\n"
-                f"المعرّف: {request.request_id}\nnode_id: {request.node_id}\nالعنوان: {request.host}\n\n"
-                f"للمراجعة: /approve_peer {request.request_id}  أو  /reject_peer {request.request_id}",
+                f"🔔 New node join request:\n"
+                f"Request ID: {request.request_id}\nnode_id: {request.node_id}\nHost: {request.host}\n\n"
+                f"Review with: /approve_peer {request.request_id} or /reject_peer {request.request_id}",
             )
 
     def _cmd_pending(self, chat_id: str, args: str) -> None:
         pending = self._pending.list_pending()
         if not pending:
-            self._send(chat_id, "لا توجد طلبات انضمام معلّقة.")
+            self._send(chat_id, "No node join requests are pending.")
             return
         lines = [f"- {r.request_id} | node_id={r.node_id} | {r.host}" for r in pending]
-        self._send(chat_id, "طلبات الانضمام المعلّقة:\n" + "\n".join(lines))
+        self._send(chat_id, "Pending node join requests:\n" + "\n".join(lines))
 
     def _cmd_approve_peer(self, chat_id: str, args: str) -> None:
         request_id = args.strip()
         request = self._pending.get(request_id)
         if request is None or request.status != "pending":
-            self._send(chat_id, f"لا يوجد طلب معلّق بالمعرّف '{request_id}'.")
+            self._send(chat_id, f"No pending request exists with ID '{request_id}'.")
             return
 
         approval_id = f"peer-approve-{uuid.uuid4().hex[:8]}"
         self._service.request_approval(
             chat_id,
             approval_id,
-            f"منح ثقة mTLS للعقدة node_id={request.node_id} على {request.host} "
-            f"(المعرّف: {request_id}). لا يمكن التراجع تلقائيًا بعد المنح.",
+            f"Grant mTLS trust to node_id={request.node_id} at {request.host} "
+            f"(request ID: {request_id}). This grant cannot be automatically reversed.",
             on_approve=lambda: self._execute_approve(chat_id, request_id),
-            on_reject=lambda: self._send(chat_id, f"أُلغيت مراجعة '{request_id}'."),
+            on_reject=lambda: self._send(chat_id, f"Review of '{request_id}' was cancelled."),
         )
 
     def _execute_approve(self, chat_id: str, request_id: str) -> None:
         request = self._pending.get(request_id)
         if request is None or request.status != "pending":
-            self._send(chat_id, f"تعذّر العثور على الطلب '{request_id}' عند التنفيذ.")
+            self._send(chat_id, f"Request '{request_id}' was no longer available for execution.")
             return
 
         # Trust must be fully granted BEFORE the pending request is marked
@@ -130,15 +130,15 @@ class ClusterTelegramCommands:
             "cluster.peer_approved",
             {"request_id": request_id, "node_id": request.node_id, "host": request.host},
         )
-        self._send(chat_id, f"✅ تمت الموثوقية: العقدة {request.node_id} أصبحت ضمن TrustStore.")
+        self._send(chat_id, f"✅ Trust granted: node {request.node_id} is now in the TrustStore.")
 
     def _cmd_reject_peer(self, chat_id: str, args: str) -> None:
         request_id = args.strip()
         request = self._pending.mark_rejected(request_id)
         if request is None:
-            self._send(chat_id, f"لا يوجد طلب بالمعرّف '{request_id}'.")
+            self._send(chat_id, f"No request exists with ID '{request_id}'.")
             return
         self._publish(
             "cluster.peer_rejected", {"request_id": request_id, "node_id": request.node_id}
         )
-        self._send(chat_id, f"❌ رُفض طلب انضمام العقدة {request.node_id}.")
+        self._send(chat_id, f"❌ Node join request for {request.node_id} was rejected.")
