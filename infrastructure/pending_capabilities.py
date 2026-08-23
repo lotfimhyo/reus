@@ -4,17 +4,17 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-PendingCapabilityStore — نفس نمط `infrastructure/cluster_network/
-join_requests.py` (`PendingJoinStore`) تمامًا، لسبب واحد متعمَّد: هذا هو
-البوابة البشرية الثانية في النظام (الأولى: انضمام عقدة جديدة للعنقود؛
-هذه: قدرة جديدة يقترحها نموذج Ollama لعقدة موجودة أصلًا) — نفس الشكل يعني
-نفس الضمانات (لا شيء يُعتمَد إلا بقرار بشري صريح عبر تلغرام)، ونفس سهولة
-المراجعة لاحقًا.
+PendingCapabilityStore deliberately follows the same pattern as
+`PendingJoinStore`: it is the system's second human gate. The first governs a
+new node joining a cluster; this one governs an Ollama-proposed capability for
+an existing node. The shared shape gives the same assurance that nothing is
+accepted without explicit human Telegram approval and remains easy to audit.
 
-الفارق الجوهري عن PendingJoinStore: هنا يُخزَّن `BuildResult` كامل (اجتاز
-فعلًا كل بوابات الأمان الآلية: توليد → فحص ثابت → sandbox) — وليس مجرد
-ادّعاء غير مُتحقَّق منه. الموافقة البشرية هنا ليست بديلًا عن الفحص الآلي، بل
-طبقة إضافية فوقه: "هذا الكود آمن آليًا، لكن هل نريده فعلًا في هذه العقدة؟"
+Unlike PendingJoinStore, this store holds a complete BuildResult that has
+already passed automated gates—generation, static review, and sandboxing—not an
+unverified claim. Human approval is an additional layer, not a replacement for
+automated checks: the code passed the automated safety gates, but is it wanted
+on this node?
 """
 from __future__ import annotations
 
@@ -43,8 +43,8 @@ class PendingCapabilityStore:
     def create(self, node_role_id: str, build_result: BuildResult) -> PendingCapabilityRequest:
         if not build_result.approved:
             raise ValueError(
-                "لا يمكن إدراج BuildResult مرفوض في PendingCapabilityStore — "
-                "الرفض الآلي نهائي، لا يمرّ للمراجعة البشرية أصلًا."
+                "A rejected BuildResult cannot enter PendingCapabilityStore; "
+                "automated rejection is final and never reaches human review."
             )
         with self._lock:
             request_id = f"cap-{uuid.uuid4().hex[:10]}"
