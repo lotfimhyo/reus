@@ -5,8 +5,9 @@
 
 """
 Domain layer: EventLogEntry.
-تمثيل دائم لحدث واحد نُشر عبر EventBus، محفوظ لأغراض المراقبة والتدقيق فقط
-(لا علاقة له بمنطق الأعمال؛ EventBus نفسه لا يعرف بوجود هذا التخزين إطلاقًا).
+Durable representation of one event published through EventBus, retained only
+for observability and auditing. It is separate from business logic; EventBus
+itself has no knowledge of this storage.
 """
 from __future__ import annotations
 
