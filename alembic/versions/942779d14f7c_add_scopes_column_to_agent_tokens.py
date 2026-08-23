@@ -25,13 +25,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    # الخطوة 1: إضافة العمود قابلًا لـ NULL أولًا، حتى نستطيع تعبئته لكل صف موجود مسبقًا
+    # Step 1: add the column as nullable first so it can be populated for
+    # every pre-existing row.
     op.add_column("agent_tokens", sa.Column("scopes", sa.JSON(), nullable=True))
 
-    # الخطوة 2: ترحيل بيانات حقيقي — كل رمز مُصدَر قبل هذه الحلقة كان يرث ضمنيًا
-    # كل صلاحيات وكيله وقتها (السلوك القديم قبل مفهوم Scopes)، لذا نُعبّئ scopes
-    # بصلاحيات الوكيل الحالية بدل تركها فارغة (فراغ يعني "بلا صلاحيات إطلاقًا"
-    # حسب المعنى الجديد، وهذا كان سيُسقط كل الرموز القديمة فجأة بلا صلاحيات — خطأ جسيم).
+    # Step 2: perform a real data migration. Every token issued before this
+    # migration implicitly inherited its agent's permissions (the behavior
+    # before scopes existed), so populate scopes with the agent's current
+    # permissions instead of leaving it empty. Under the new semantics, empty
+    # means "no permissions at all", which would abruptly remove permissions
+    # from every existing token.
     op.execute(
         """
         UPDATE agent_tokens
@@ -40,10 +43,12 @@ def upgrade() -> None:
         WHERE agent_tokens.agent_id = agents.agent_id
         """
     )
-    # رموز قد يكون وكيلها حُذف لاحقًا (بلا تطابق في JOIN أعلاه) تُعبَّأ بمصفوفة فارغة صراحة
+    # Tokens whose agent was deleted later have no matching JOIN row above, so
+    # explicitly populate them with an empty array.
     op.execute("UPDATE agent_tokens SET scopes = '[]'::json WHERE scopes IS NULL")
 
-    # الخطوة 3: الآن وقد اكتملت التعبئة، نفرض NOT NULL كما في التصميم النهائي للعمود
+    # Step 3: after population is complete, enforce NOT NULL as required by
+    # the column's final design.
     op.alter_column("agent_tokens", "scopes", nullable=False)
 
 

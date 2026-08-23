@@ -5,9 +5,10 @@
 
 """encrypt memory content at rest
 
-يستبدل عمود memory_records.content (نص صافٍ) بعمود content_encrypted (bytea).
-البيانات الموجودة تُشفَّر فعليًا أثناء الترحيل (وليس فقط تغيير نوع العمود)
-باستخدام REUS_ENCRYPTION_KEY، حتى لا يبقى أي نص صافٍ حساس على القرص.
+Replaces the memory_records.content column (plaintext) with
+content_encrypted (bytea). Existing data is encrypted during this migration,
+not merely converted to a different column type, using REUS_ENCRYPTION_KEY so
+that no sensitive plaintext remains on disk.
 
 Revision ID: 00a99982a4e7
 Revises: c1dd83a102ca
@@ -39,7 +40,7 @@ _memory_records = sa.table(
 
 def upgrade() -> None:
     """Upgrade schema."""
-    encryption = EncryptionService(key=get_settings().encryption_key)  # يفشل بوضوح إن كان المفتاح غير مضبوط
+    encryption = EncryptionService(key=get_settings().encryption_key)  # Fails explicitly if the key is not configured.
 
     op.add_column("memory_records", sa.Column("content_encrypted", sa.LargeBinary(), nullable=True))
 
