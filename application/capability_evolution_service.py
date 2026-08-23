@@ -4,29 +4,25 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-CapabilityEvolutionService — يُغلق الحلقة المطلوبة صراحةً: "العقد تطور نفسها
-عبر اشراف بشري في تلقرام".
+CapabilityEvolutionService supports reviewed capability evolution for nodes.
 
-التدفق الكامل (كل خطوة حقيقية، لا محاكاة):
-  1. فجوة مهارة تُوصَف (`AgentSpec` بحد أدنى حالة اختبار واحدة يحدّدها من
-     يطلب التطوّر — إنسان أو منطق مراقبة لاحق، خارج نطاق هذا الملف).
-  2. `OllamaSynthesizer` (نموذج Ollama محلي حقيقي) يكتب المنطق الفعلي.
-  3. `IndependentTestReviewer` (استدعاء Ollama منفصل ثانٍ) يقترح حالات
-     اختبار إضافية مستقلة — مراجع مختلف عن الكاتب، وليس نفس الاستدعاء الذي
-     كتب الكود يراجع نفسه.
-  4. `AgentBuilder` (`AgentCapabilityBinder.build()`) يُطبِّق **بلا أي
-     استثناء أو تخفيف**: فحص ثابت (بلا imports/eval/dunder) ثم sandbox
-     معزول حقيقي (subprocess + حدود موارد) لكل حالات الاختبار مجتمعة.
-  5. فقط عند نجاح كل ما سبق: تُدرَج القدرة في `PendingCapabilityStore`
-     وتُرسَل إشعارات فورية لكل محادثات الإدارة على تلغرام.
-  6. لا شيء يُربَط فعليًا (`bind`) في `CapabilityLayer`/`LocalExecutor`، ولا
-     تُضاف القدرة لمهارات `NodeRole`، إلا بعد `/approve_capability` ثم تأكيد
-     `/approve` من نفس بوابة `request_approval` المزدوجة المستخدمة لكل قرار
-     حساس آخر في هذا النظام (نشر سحابي، ثقة عنقود جديدة).
+The complete flow has independently enforceable stages:
+  1. A skill gap is described as an `AgentSpec` with at least one test case.
+  2. `OllamaSynthesizer` writes the candidate implementation locally.
+  3. `IndependentTestReviewer` performs a separate local-model review and
+     proposes additional test cases; the code author does not review itself.
+  4. `AgentCapabilityBinder.build()` applies static restrictions (no imports,
+     `eval`, or dunder access) and then runs all test cases in an isolated,
+     resource-limited subprocess sandbox.
+  5. A successful candidate is placed in `PendingCapabilityStore` and
+     administrators are notified in Telegram.
+  6. Nothing is bound to `CapabilityLayer`, `LocalExecutor`, or a `NodeRole`
+     until `/approve_capability` is followed by the separate `/approve`
+     confirmation in the same double-confirmation gate used for other
+     security-sensitive decisions.
 
-قدرة يقترحها Ollama ولم تُرفَض آليًا لا تحصل على أي ثقة إضافية لكونها
-"اجتازت الفحص" — الفحص الآلي شرط ضروري، لا كافٍ؛ الموافقة البشرية شرط لاحق
-منفصل تمامًا، غير قابل للتجاوز.
+Passing automated checks is necessary but not sufficient. Human approval is a
+separate, non-bypassable requirement before a candidate capability is bound.
 """
 from __future__ import annotations
 
@@ -62,14 +58,14 @@ class CapabilityEvolutionService:
         telegram.register_admin_command("/approve_capability", self._cmd_approve)
         telegram.register_admin_command("/reject_capability", self._cmd_reject)
 
-    # -- الخطوات 1-5: اقتراح + بناء + إشعار ---------------------------------
+    # -- Stages 1-5: proposal, build, and notification -----------------------
 
     def propose_capability(self, node_role_id: str, spec: AgentSpec) -> BuildResult:
-        """يبني القدرة عبر البوابات الآلية الكاملة فقط — لا يربطها، ولا
-        يفترض شيئًا بشأن قرار بشري لاحق. يُعيد BuildResult دائمًا (لا يرفع
-        استثناء) حتى يستطيع المستدعي إظهار سبب الرفض الآلي إن حدث."""
+        """Build through automated gates only; never bind or assume a later
+        human decision. Always return `BuildResult` so callers can surface an
+        automated rejection reason without an exception."""
         if node_role_id not in NODE_ROLES:
-            raise ValueError(f"دور عقدة غير معروف: {node_role_id!r}")
+            raise ValueError(f"Unknown node role: {node_role_id!r}")
 
         result = self._binder.build(spec)
         if not result.approved:
@@ -90,31 +86,31 @@ class CapabilityEvolutionService:
     def _notify_admins(self, request: PendingCapabilityRequest) -> None:
         spec = request.build_result.spec
         text = (
-            f"🧬 اقترح Ollama مهارة جديدة لعقدة '{request.node_role_id}':\n"
-            f"المعرّف: {request.request_id}\nالقدرة: {spec.capability}\nالوصف: {spec.description}\n\n"
-            f"اجتازت الفحص الآلي الكامل (توليد → فحص ثابت → sandbox). "
-            f"للمراجعة: /approve_capability {request.request_id}  أو  /reject_capability {request.request_id}"
+            f"🧬 Ollama proposed a new capability for node '{request.node_role_id}':\n"
+            f"Request ID: {request.request_id}\nCapability: {spec.capability}\nDescription: {spec.description}\n\n"
+            f"It passed the complete automated pipeline (generation → static review → sandbox). "
+            f"Review with: /approve_capability {request.request_id} or /reject_capability {request.request_id}"
         )
         for chat_id in self._admin_chat_ids:
             self._telegram.deliver(chat_id, text)
 
-    # -- أوامر تلغرام (خطوة 6: الإشراف البشري) ------------------------------
+    # -- Telegram commands (stage 6: human oversight) ------------------------
 
     def _cmd_pending(self, chat_id: str, args: str) -> None:
         pending = self._pending.list_pending()
         if not pending:
-            self._telegram.deliver(chat_id, "لا توجد مهارات مقترَحة معلّقة.")
+            self._telegram.deliver(chat_id, "No proposed capabilities are pending.")
             return
         lines = [
-            f"- {r.request_id} | عقدة={r.node_role_id} | {r.build_result.spec.capability}" for r in pending
+            f"- {r.request_id} | node={r.node_role_id} | {r.build_result.spec.capability}" for r in pending
         ]
-        self._telegram.deliver(chat_id, "المهارات المقترَحة المعلّقة:\n" + "\n".join(lines))
+        self._telegram.deliver(chat_id, "Pending proposed capabilities:\n" + "\n".join(lines))
 
     def _cmd_approve(self, chat_id: str, args: str) -> None:
         request_id = args.strip()
         request = self._pending.get(request_id)
         if request is None or request.status != "pending":
-            self._telegram.deliver(chat_id, f"لا يوجد طلب معلّق بالمعرّف '{request_id}'.")
+            self._telegram.deliver(chat_id, f"No pending request exists with ID '{request_id}'.")
             return
 
         spec = request.build_result.spec
@@ -122,24 +118,23 @@ class CapabilityEvolutionService:
         self._telegram.request_approval(
             chat_id,
             approval_id,
-            f"ربط مهارة '{spec.capability}' فعليًا بعقدة '{request.node_role_id}' "
-            f"(المعرّف: {request_id}). ستصبح قابلة للتنفيذ فورًا بعد الموافقة.",
+            f"Bind capability '{spec.capability}' to node '{request.node_role_id}' "
+            f"(request ID: {request_id}). It will become executable immediately after approval.",
             on_approve=lambda: self._execute_approve(chat_id, request_id),
-            on_reject=lambda: self._telegram.deliver(chat_id, f"أُلغيت مراجعة '{request_id}'."),
+            on_reject=lambda: self._telegram.deliver(chat_id, f"Review of '{request_id}' was cancelled."),
         )
 
     def _execute_approve(self, chat_id: str, request_id: str) -> None:
         request = self._pending.get(request_id)
         if request is None or request.status != "pending":
-            self._telegram.deliver(chat_id, f"تعذّر العثور على الطلب '{request_id}' عند التنفيذ.")
+            self._telegram.deliver(chat_id, f"Request '{request_id}' was no longer available for execution.")
             return
 
         descriptor: CapabilityDescriptor = self._binder.bind(request.build_result)
         role = NODE_ROLES[request.node_role_id]
-        # NodeRole مُعرَّف كـ frozen dataclass بحقل specs قابل للتغيير
-        # (list عادية) عمدًا — إضافة القدرة المعتمَدة هنا هي بالضبط
-        # "تطوّر العقدة لنفسها": مهارتها تكبر بمرور الوقت دون إعادة تعريف
-        # NODE_ROLES نفسها في الكود المصدري.
+        # NodeRole is a frozen dataclass with an intentionally mutable `specs`
+        # list. Appending the approved capability grows the node's skill set at
+        # runtime without redefining the source-level NODE_ROLES mapping.
         role.specs.append(request.build_result.spec)
 
         self._pending.mark_approved(request_id)
@@ -153,7 +148,7 @@ class CapabilityEvolutionService:
         )
         self._telegram.deliver(
             chat_id,
-            f"✅ رُبطت المهارة '{descriptor.name}' فعليًا بعقدة '{request.node_role_id}' "
+            f"✅ Capability '{descriptor.name}' was bound to node '{request.node_role_id}' "
             f"(capability_id={descriptor.capability_id}).",
         )
 
@@ -161,11 +156,11 @@ class CapabilityEvolutionService:
         request_id = args.strip()
         request = self._pending.mark_rejected(request_id)
         if request is None:
-            self._telegram.deliver(chat_id, f"لا يوجد طلب بالمعرّف '{request_id}'.")
+            self._telegram.deliver(chat_id, f"No request exists with ID '{request_id}'.")
             return
         self._publish("capability.evolution.rejected_by_human", {"request_id": request_id})
         self._telegram.deliver(
-            chat_id, f"❌ رُفضت المهارة المقترَحة '{request.build_result.spec.capability}'."
+            chat_id, f"❌ Proposed capability '{request.build_result.spec.capability}' was rejected."
         )
 
     def _publish(self, name: str, payload: dict) -> None:
