@@ -7,7 +7,7 @@ Copyright: © Lotfi Mahiddine
 Architecture: Veritas AI
 
 SelfReview — step 8 of the cognitive cycle from the master architecture
-doc, section "Cognitive Engine" ("مراجعة الذات"), deferred at the end of
+document, section "Cognitive Engine" (self-review), deferred at the end of
 Layer 5's first increment specifically because it needed a real population
 of executed goals to review. That population now exists as audited,
 Episodic Memory records produced by every CognitiveEngine.run() call since.
