@@ -3,10 +3,10 @@
 # Organization: Reulink
 # Contact: Contact@reulink.app
 
-"""
-Application Layer: MemoryService.
-يربط بين صلاحيات الوكيل (Domain) ومحرك البحث الدلالي (Infrastructure)،
-ويحافظ على تزامن قائمة memory_refs داخل كيان Agent.
+"""Application layer for memory operations.
+
+It connects agent permissions from the domain model to semantic search
+infrastructure and keeps each agent's `memory_refs` list synchronized.
 """
 from __future__ import annotations
 
