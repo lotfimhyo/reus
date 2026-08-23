@@ -12,7 +12,7 @@ from domain.agent_token import AgentToken
 
 class AgentTokenNotFound(Exception):
     def __init__(self, token_id: str):
-        super().__init__(f"لم يتم العثور على رمز بالمعرّف: {token_id}")
+        super().__init__(f"No token was found for id: {token_id}")
 
 
 class AgentTokenRepository(ABC):
@@ -21,7 +21,7 @@ class AgentTokenRepository(ABC):
 
     @abstractmethod
     def get_by_hash(self, token_hash: str) -> AgentToken | None:
-        """يُعيد None إن لم يوجد رمز بهذا الـ hash (وليس استثناءً؛ هذا مسار تحقق عادي)."""
+        """Return None when no token has this hash; verification expects that path."""
         ...
 
     @abstractmethod
