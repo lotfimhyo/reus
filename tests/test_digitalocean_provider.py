@@ -4,11 +4,12 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-اختبارات لـ DigitalOceanProvider (infrastructure/cloud/digitalocean_provider.py)
-— كانت 63% مغطاة. هذه الوحدة تُنفِق مالًا حقيقيًا عند استخدامها فعليًا
-(إنشاء/تدمير خوادم سحابية) — تستحق تغطية أعمق من المتوسط لهذا السبب
-تحديدًا. كل الاختبارات تُحاكي urllib.request.urlopen بالكامل؛ لا اتصال
-شبكي حقيقي ولا أي إنفاق فعلي من تشغيل هذه الاختبارات.
+Tests for DigitalOceanProvider (infrastructure/cloud/digitalocean_provider.py),
+which previously had 63% coverage. When used with real credentials, this
+module can incur real costs by creating or destroying cloud servers, so it
+merits deeper-than-average coverage. Every test fully mocks
+``urllib.request.urlopen``; running this suite makes no network connection and
+does not create or spend on cloud resources.
 """
 from __future__ import annotations
 
@@ -61,7 +62,7 @@ class TestCreateInstance(unittest.TestCase):
         self.assertEqual(sent_body["name"], "node-1")
         self.assertEqual(sent_body["region"], "nyc3")
         self.assertEqual(sent_body["size"], "s-1vcpu-1gb")
-        self.assertNotIn("user_data", sent_body)  # لا سكربت cloud-init افتراضيًا
+        self.assertNotIn("user_data", sent_body)  # No default cloud-init script.
 
     @patch("infrastructure.cloud.digitalocean_provider.urllib.request.urlopen")
     def test_create_instance_includes_user_data_when_provided(self, mock_urlopen):
@@ -77,7 +78,7 @@ class TestCreateInstance(unittest.TestCase):
 
     @patch("infrastructure.cloud.digitalocean_provider.urllib.request.urlopen")
     def test_create_instance_returns_info_with_no_ip_yet(self, mock_urlopen):
-        """خادم جديد لا يملك عنوان IP فور الإنشاء — يجب ألا يُختلَق واحد."""
+        """A new server has no IP address immediately after creation; none must be invented."""
         mock_urlopen.side_effect = [
             _fake_response({"droplet": {"id": 123, "name": "node-1", "status": "new"}}),
             _fake_response({"sizes": [{"slug": "s-1vcpu-1gb", "price_monthly": 6.0}]}),
@@ -199,8 +200,8 @@ class TestEstimateMonthlyCost(unittest.TestCase):
 
     @patch("infrastructure.cloud.digitalocean_provider.urllib.request.urlopen")
     def test_returns_zero_not_raises_when_api_call_fails(self, mock_urlopen):
-        """السلوك الموثَّق صراحة: 0.0 تعني \"تعذّر التحقق\"، لا \"مجانًا\" —
-        لكن يجب ألا يُفشِل هذا العملية الأكبر (إنشاء خادم) بأكملها."""
+        """Documented behavior: 0.0 means "could not verify," not "free."
+        That failure must not stop the larger operation (creating a server)."""
         mock_urlopen.side_effect = urllib.error.URLError("network down")
 
         cost = self.provider.estimate_monthly_cost(_config())
