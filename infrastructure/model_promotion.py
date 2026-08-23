@@ -4,17 +4,16 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-ActiveModelStore — الحقيقة الوحيدة (single source of truth) لـ"أي نموذج
-Ollama يُستخدَم فعليًا الآن للإجابة على مهام حقيقية". يبدأ دائمًا بالنموذج
-الأساسي (`base_model`، مثل `llama3.1`)، ولا يتحوّل للنموذج المتطوّر
-(`reus-evolved`) إلا عبر `ModelPromotionService` بعد موافقة بشرية صريحة عبر
-تلغرام.
+ActiveModelStore is the single source of truth for which Ollama model currently
+answers real tasks. It always starts with `base_model`, such as `llama3.1`, and
+switches to an evolved model only through ModelPromotionService after explicit
+human Telegram approval.
 
-قرار تصميم متعمَّد: **محفوظ على القرص، لا في الذاكرة فقط**. قرار الترقية
-قرار بشري واعٍ — فقدانه بصمت عند إعادة تشغيل الخدمة (بالعودة التلقائية
-للنموذج الأساسي دون علم أحد) يُلغي أثر ذلك القرار بصمت، وهو أخطر من مجرد
-إزعاج تشغيلي. من يريد التراجع عن الترقية يفعل ذلك صراحة عبر `/demote_model`
-أو `set_active(base_model)`، لا عبر إعادة تشغيل عرَضية.
+The decision is deliberately persisted to disk rather than memory alone. A
+promotion is a conscious human decision; silently losing it after a service
+restart and falling back to the base model would invalidate that decision. An
+operator demotes explicitly through `/demote_model` or `set_active(base_model)`,
+not through an accidental restart.
 """
 from __future__ import annotations
 
