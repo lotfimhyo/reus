@@ -4,10 +4,11 @@
 # Contact: Contact@reulink.app
 
 """
-اختبارات AnthropicModelClient. بما أن هذه البيئة لا تملك REUS_ANTHROPIC_API_KEY فعليًا
-(راجع التوثيق في infrastructure/model_client.py)، تُحقن هذه الاختبارات كائن SDK وهميًا
-بديلًا عن anthropic.Anthropic الحقيقي، للتحقق من صحة منطق التكامل الذي نملكه فعلًا:
-بناء الطلب، استخراج النص من الاستجابة، ومعالجة أخطاء API — دون أي نداء شبكي حقيقي.
+Tests for AnthropicModelClient. Because this environment has no real
+REUS_ANTHROPIC_API_KEY (see infrastructure/model_client.py), these tests inject
+a fake SDK object instead of a real anthropic.Anthropic client to verify the
+integration logic that is actually available: request construction, extracting
+text from a response, and handling API errors—without any live network call.
 """
 from __future__ import annotations
 
@@ -22,7 +23,7 @@ from infrastructure.model_client import AnthropicModelClient, ModelInvocationErr
 
 class _FakeMessages:
     def __init__(self, response=None, error: Exception | None = None, responses: list | None = None) -> None:
-        self._responses = responses  # إن وُجدت، تُعاد بالترتيب مرة واحدة لكل استدعاء (لمحاكاة حلقة الأدوات)
+        self._responses = responses  # When provided, returns them in order once per call to simulate the tool loop.
         self._response = response
         self._error = error
         self.calls: list[dict] = []
@@ -99,7 +100,7 @@ def test_invoke_wraps_api_error():
         client.invoke(model_id="m", prompt="p")
 
 
-# ---------- invoke_with_tools (Tool Use) ----------
+# ---------- invoke_with_tools (tool use) ----------
 
 
 def _tool_use_response(tool_name: str, tool_input: dict, tool_use_id: str = "tool_1"):
@@ -145,7 +146,7 @@ def test_invoke_with_tools_executes_tool_then_returns_final_answer():
 
     assert result == "وجدت النتيجة المطلوبة"
     assert dispatched == [("search_memory", {"query": "أسعار الذهب"})]
-    assert len(fake_sdk.messages.calls) == 2  # استدعاء أول يطلب الأداة + استدعاء ثانٍ بالنتيجة النهائية
+    assert len(fake_sdk.messages.calls) == 2  # First call requests the tool; second call receives the final result.
 
 
 def test_invoke_with_tools_second_call_includes_tool_result():
@@ -171,7 +172,7 @@ def test_invoke_with_tools_second_call_includes_tool_result():
 
 
 def test_invoke_with_tools_raises_after_max_iterations_without_final_answer():
-    # كل استجابة تطلب أداة جديدة دون توقف أبدًا (محاكاة نموذج لا يتوقف)
+    # Every response requests another tool without stopping (simulating a model that never stops).
     fake_sdk = _FakeAnthropicSDK(responses=[_tool_use_response("search_memory", {"query": "x"})] * 10)
     client = AnthropicModelClient(api_key="unused", client=fake_sdk)
 
