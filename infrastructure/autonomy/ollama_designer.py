@@ -4,8 +4,9 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-تصميم مواصفة وكيل من نموذج Ollama محلي. يخرج النموذج JSON وصفياً فقط؛ يتولى
-AgentBuilder لاحقاً التوليد والتحليل الساكن والعزل. أي JSON غير صالح يرفض.
+Designs an agent specification using a local Ollama model. The model returns
+descriptive JSON only; AgentBuilder later handles generation, static analysis,
+and isolation. Invalid JSON is rejected.
 """
 
 from __future__ import annotations
