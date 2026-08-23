@@ -133,18 +133,18 @@ class TestDailyReportService(unittest.TestCase):
         summary = self.service.run_once()
         self.assertEqual(summary.newly_harvested, 0)
         self.assertIsNone(summary.model_build)
-        self.assertEqual(len(self.build_calls), 0)  # لم يُستدعَ ollama create إطلاقًا
+        self.assertEqual(len(self.build_calls), 0)  # ollama create was not invoked at all.
 
     def test_background_loop_stops_immediately_without_waiting_full_interval(self):
         self.service.start()
-        time.sleep(0.2)  # يسمح للدورة الأولى (run_once) بالاكتمال
+        time.sleep(0.2)  # Allows the first run_once cycle to complete.
         start = time.monotonic()
         self.service.stop()
         elapsed = time.monotonic() - start
-        # الفاصل الزمني 9999 ثانية — لولا threading.Event.wait القابل
-        # للإيقاف الفوري، كان stop() سينتظر قرابة هذا الرقم كاملًا.
+        # The interval is 9999 seconds. Without interruptible
+        # threading.Event.wait, stop() would wait for nearly all of it.
         self.assertLess(elapsed, 2.0)
-        self.assertTrue(self.sent_messages)  # الدورة الأولى فعلًا أرسلت تقريرًا
+        self.assertTrue(self.sent_messages)  # The first cycle did send a report.
 
 
 if __name__ == "__main__":
