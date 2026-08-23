@@ -86,7 +86,7 @@ def test_execute_without_permissions_skips_context_and_storage_gracefully(
     agent = agent_service.register_agent(RegisterAgentCommand(name="locked-down", permissions=set(), goals=[]))
     task = TaskNode(name="restricted-task", agent_id=agent.agent_id)
 
-    result = executor.execute(task)  # لا يجب أن يفشل حتى بدون أي صلاحية ذاكرة
+    result = executor.execute(task)  # Must not fail even without any memory permission.
 
     assert result["context_used"] == []
     assert result["task_name"] == "restricted-task"
