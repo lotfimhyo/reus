@@ -4,9 +4,9 @@
 # Contact: Contact@reulink.app
 
 """
-TelegramPollingWorker: يشغّل حلقة Long Polling في خيط خلفي منفصل (نفس نمط
-TaskWorker من الحلقة السادسة)، فيستقبل رسائل تلغرام الجديدة دون حاجة لعنوان
-Webhook عام، ويربط دالة الإرسال الفعلية بـ TelegramService لتوصيل النتائج.
+TelegramPollingWorker runs a long-polling loop on a separate background thread.
+It receives new Telegram messages without a public webhook address and connects
+the delivery callback to TelegramService for result delivery.
 """
 from __future__ import annotations
 
@@ -36,11 +36,10 @@ class TelegramPollingWorker:
         logger.info("telegram_polling_started", extra={"event_name": "telegram_polling_started"})
 
     def stop(self) -> None:
-        """
-        يوقف الحلقة. ملاحظة صدق: نداء getUpdates الحالي (Long Polling) قد يستغرق
-        حتى poll_timeout ثانية قبل أن يلاحظ الخيط طلب الإيقاف — سلوك متوقع لأي
-        عميل Long Polling حقيقي، وليس عطلًا. الخيط daemon أصلًا فلن يمنع إغلاق العملية.
-        """
+        """Stop the loop. An in-flight long-polling getUpdates call can take up
+        to poll_timeout seconds to observe the stop request; this is expected
+        behavior for a real long-polling client, not a fault. The daemon thread
+        does not prevent process shutdown."""
         self._stop_event.set()
         if self._thread is not None:
             self._thread.join(timeout=5.0)
@@ -55,7 +54,8 @@ class TelegramPollingWorker:
                 self._stop_event.wait(timeout=2.0)
                 continue
             except Exception:
-                # حاجز أمان أخير: أي خطأ غير متوقع لا يجوز أن يُسقط خيط الاستطلاع بالكامل بصمت
+                # Final safety barrier: an unexpected error must not silently
+                # terminate the polling thread.
                 logger.exception("telegram_polling_unexpected_error")
                 self._stop_event.wait(timeout=2.0)
                 continue
