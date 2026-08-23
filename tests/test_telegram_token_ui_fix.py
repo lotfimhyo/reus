@@ -4,10 +4,11 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-يثبت إصلاح فجوة حقيقية أبلغ عنها المؤسس: لم توجد أي طريقة عبر لوحة
-التحكم للحصول على رمز وكيل صالح لربط تلغرام. يثبت هذا الملف: زر توليد
-الرمز موجود فعليًا في HTML الناتج، بالنمط الآمن (تفويض حدث + data-agent-id
-لا onclick مبني بسلسلة نصية)، ورسالة رفض /link أصبحت تشرح الحل الفعلي.
+Proves a real gap reported by the founder: the dashboard had no way to obtain
+a valid agent token for linking Telegram. This file proves that the token
+generation button is present in the rendered HTML using the safe pattern
+(event delegation plus data-agent-id, not a string-built onclick), and that the
+/link rejection message now explains the actual remedy.
 """
 from __future__ import annotations
 
