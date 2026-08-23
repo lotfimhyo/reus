@@ -24,10 +24,9 @@ class ChatResponse(BaseModel):
 
     @classmethod
     def from_executor_result(cls, result: Any) -> "ChatResponse":
-        """المُنفِّذات المختلفة (Ollama/النماذج الثانوية/الإدراكي/الافتراضي)
-        تُعيد أشكالًا مختلفة — هذا التطبيع صادق: يُظهر الحقول الغنية
-        (provider/model_used/fallback_from) فقط حين تكون موجودة فعليًا في
-        النتيجة، ولا يتظاهر بها لبقية أوضاع التنفيذ."""
+        """Executors return different shapes. This normalization exposes rich
+        provider, model, and fallback fields only when they are actually
+        present in the result and does not invent them for other modes."""
         if isinstance(result, dict) and "response" in result:
             return cls(
                 response=str(result["response"]),
