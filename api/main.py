@@ -4,35 +4,32 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-هذا الملف مبني حول `create_app()` بدل تطبيق FastAPI واحد ثابت، لسبب أمني
-محدَّد اكتُشِف عند المراجعة: قبل هذه الحلقة، كل المسارات الإدارية
+This module is built around `create_app()` instead of one fixed FastAPI
+application because an earlier review found that administrative routes
 (`/agents`, `/workflows`, `/agents/{id}/memory`, `/metrics`,
-`/observability`, `/dashboard`) وكل المسارات العامة (`/chat`, `/app`)
-كانت تُخدَم من **نفس عملية FastAPI، نفس المنفذ، نفس المستمِع الشبكي**.
-الفصل بينهما كان فصلًا منطقيًا فقط (مفتاح API مختلف) — لا فصلًا شبكيًا
-فعليًا. من يستطيع الوصول لـ`/chat` عبر الإنترنت يستطيع تقنيًا محاولة
-الوصول لـ`/agents` على نفس العنوان والمنفذ بالضبط؛ الحماية الوحيدة كانت
-رفض المصادقة (401)، لا غياب المسار عن السطح الشبكي أصلًا.
+`/observability`, `/dashboard`) and public routes (`/chat`, `/app`) were
+served by the same process, port, and network listener. Different API keys are
+logical separation, not network separation: an internet client able to reach
+`/chat` could still attempt `/agents` on the same address. Authentication
+rejection alone is not equivalent to removing an administrative route from the
+network surface.
 
-`create_app(include_public, include_admin)` يسمح ببناء ثلاثة تطبيقات:
-  - `app` (كلاهما معًا، الافتراضي) — نفس السلوك الحالي تمامًا، صفر تغيير
-    لأي نشر قائم (docker-compose.yml، run.sh، CI، كل الاختبارات).
-  - `public_app` (`/chat`, `/app`, `/health`, `/ready` فقط) — لا يحتوي
-    `/agents` ولا أي مسار إداري آخر إطلاقًا، ليس فقط محميًا بمفتاح؛ غائب
-    تمامًا عن جدول التوجيه، فطلب له يُعيد 404 لا 401. يمكن نشره على منفذ
-    عام مكشوف للإنترنت بثقة أكبر.
-  - `admin_app` (كل شيء ما عدا `/chat`/`/app`) — يُقصَد تشغيله خلف جدار
-    ناري/VPN/شبكة داخلية فقط، لا مكشوفًا للإنترنت العام.
+`create_app(include_public, include_admin)` builds three deployable forms:
+  - `app`, the backwards-compatible default with both route groups;
+  - `public_app`, with only `/chat`, `/app`, `/health`, and `/ready`, where
+    administrative paths are absent from routing and return 404 rather than
+    merely being key-protected;
+  - `admin_app`, containing all non-public routes and intended for a firewall,
+    VPN, or internal network only.
 
-كل تطبيق لا يزال يملك `/health`/`/ready` (أي عملية مُشغَّلة بمفردها تحتاج
-فحوصات حيوية/جهوزية خاصة بها، بصرف النظر عن أي المسارات الأخرى تخدمها).
+Every form retains `/health` and `/ready` because each independently running
+process needs its own liveness and readiness checks.
 
-قرار مهم آخر: عند التشغيل المنفصل (public_app/admin_app كعمليتين
-منفصلتين فعليًا)، يجب ألا تبدأ كلتاهما نفس عمّال الخلفية (عامل المهام،
-استقصاء تلغرام، التقرير اليومي) — تشغيلهما مرتين يعني معالجة كل حدث
-مرتين. القرار: عمّال الخلفية بالكامل مسؤولية `admin_app`/`app` فقط؛
-`public_app` وحده لا يُشغِّل أي عامل خلفية إطلاقًا — /chat لا يحتاج أيًا
-منها (المنفِّذ يُستدعى مباشرة ومتزامنًا لكل طلب، لا عبر طابور خلفي).
+When public and administrative applications run as separate processes, only
+`admin_app` or the combined `app` starts background workers. Starting task,
+Telegram polling, or daily-report workers twice would process events twice.
+The standalone `public_app` starts no background worker because `/chat`
+executes its compatible executor directly and synchronously per request.
 """
 from __future__ import annotations
 
