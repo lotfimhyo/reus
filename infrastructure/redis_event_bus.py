@@ -4,17 +4,16 @@
 # Contact: Contact@reulink.app
 
 """
-RedisEventBus: تطبيق موزّع لواجهة EventBus عبر Redis Pub/Sub.
+RedisEventBus is a distributed EventBus implementation over Redis Pub/Sub.
 
-فرق جوهري وموثّق بصدق عن InMemoryEventBus:
-InMemoryEventBus متزامن (استدعاء publish() يُشغّل كل المشتركين فورًا ضمن نفس الاستدعاء)
-لأنه يعمل داخل عملية واحدة فقط. RedisEventBus **غير متزامن بطبيعته**: الرسالة تُنشر إلى
-Redis، وأي عملية (Process) مشتركة — سواء في نفس الخادم أو خادم آخر — تستقبلها عبر خيط
-استماع (Listener Thread) خاص بها، بتأخير شبكي بسيط. هذا هو بالضبط ما يمنح النظام القدرة
-على توزيع الوكلاء والعمّال عبر عُقد متعددة (الهدف الأساسي من هذه الحلقة).
+Unlike InMemoryEventBus, which is synchronous because it runs within one
+process, RedisEventBus is inherently asynchronous. A message is published to
+Redis and any subscribing process on the same or another server receives it
+through its own listener thread with modest network delay. This is what permits
+agents and workers to distribute across multiple nodes.
 
-كل الأحداث تُسجَّل محليًا في السجلات المهيكلة أيضًا (بغض النظر عن وجود مشتركين)،
-تلبيةً لمتطلب الأمان: "تسجل الأحداث".
+Every event is also written to local structured logs regardless of subscribers,
+preserving the event-recording security requirement.
 """
 from __future__ import annotations
 
@@ -36,7 +35,7 @@ WILDCARD_PATTERN = f"{CHANNEL_PREFIX}:*"
 class RedisEventBus(EventBus):
     def __init__(self, redis_url: str) -> None:
         self._client = redis.Redis.from_url(redis_url, decode_responses=True)
-        self._client.ping()  # يفشل مبكرًا وبوضوح إن كان Redis غير متاح، بدل فشل صامت لاحقًا
+        self._client.ping()  # Fail early and clearly when Redis is unavailable.
         self._pubsub = self._client.pubsub(ignore_subscribe_messages=True)
         self._exact_handlers: dict[str, list[Subscriber]] = defaultdict(list)
         self._wildcard_handlers: list[Subscriber] = []
@@ -94,10 +93,10 @@ class RedisEventBus(EventBus):
             handler(event)
 
     def close(self) -> None:
-        """يوقف خيط الاستماع بأمان. مفيد عند إيقاف التطبيق أو تنظيف الاختبارات."""
+        """Stop the listener thread safely for application shutdown or test cleanup."""
         if self._listener_thread is not None:
             self._listener_thread.stop()
-            self._listener_thread.join(timeout=1.0)  # ينتظر خروج الخيط فعليًا قبل إغلاق الاتصال
+            self._listener_thread.join(timeout=1.0)  # Wait for actual thread exit before closing connections.
             self._listener_thread = None
         self._pubsub.close()
         self._client.close()
