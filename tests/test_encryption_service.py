@@ -50,14 +50,14 @@ def test_decrypt_with_wrong_key_fails_loudly():
 def test_decrypt_tampered_ciphertext_fails_loudly():
     service = EncryptionService(key=VALID_KEY)
     ciphertext = bytearray(service.encrypt_text("بيانات أصلية"))
-    ciphertext[-1] ^= 0xFF  # تلاعب بآخر بايت
+    ciphertext[-1] ^= 0xFF  # Tamper with the last byte.
 
     with pytest.raises(DecryptionFailed):
         service.decrypt_text(bytes(ciphertext))
 
 
 def test_same_plaintext_produces_different_ciphertext_each_time():
-    """Fernet يضيف IV عشوائيًا؛ نفس النص يجب ألا يُنتج نفس الشفرة مرتين (يمنع تحليل الأنماط)."""
+    """Fernet adds a random IV; identical plaintext must not produce identical ciphertext twice (preventing pattern analysis)."""
     service = EncryptionService(key=VALID_KEY)
     c1 = service.encrypt_text("نفس النص")
     c2 = service.encrypt_text("نفس النص")
