@@ -4,13 +4,13 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-يثبت الحلقة الكاملة المطلوبة صراحةً: "العقد تطور نفسها عبر اشراف بشري في
-تلقرام". الشيء الوحيد المُحاكى هنا هو استجابة خادم Ollama نفسه (عبر حقن
-`OllamaClient` وهمي بدل استدعاء HTTP حقيقي لخادم Ollama غير متوفر في بيئة
-هذا الاختبار) — كل شيء آخر حقيقي فعليًا: `static_analyze`، `AgentSandbox`
-(subprocess معزول حقيقي)، `CapabilityLayer.publish`، `LocalExecutor`، وبوابة
-موافقة `TelegramService` الحقيقية بخطوتيها (`/approve_capability` ثم
-`/approve`).
+Verifies the requested end-to-end loop: nodes evolve through human oversight
+in Telegram. The Ollama server response is mocked by injecting a fake
+``OllamaClient`` rather than making an HTTP call to a server. The test exercises
+the local paths for ``static_analyze``, ``AgentSandbox`` (an isolated
+subprocess), ``CapabilityLayer.publish``, ``LocalExecutor``, and the two-step
+``TelegramService`` approval flow (``/approve_capability`` then ``/approve``).
+It does not verify a live Ollama or Telegram provider integration.
 
 Run: `python3 -m unittest tests.test_capability_evolution -v`
 """
@@ -42,9 +42,9 @@ from infrastructure.workflow_repository import InMemoryWorkflowRepository
 
 
 class _FakeOllamaClient:
-    """يحاكي استجابة خادم Ollama نفسه فقط (لا شيء أبعد من ذلك) — يعيد نص
-    منطق `run()` صالحًا لمهارة 'عكس الكلمات في جملة'، ثم لاحقًا حالات
-    اختبار إضافية بصيغة JSON، تمامًا كما يفعل خادم Ollama حقيقي."""
+    """Mock only the Ollama server response: return valid ``run()`` logic for
+    a word-reversal capability, then additional JSON test cases, mirroring the
+    response shape expected from an Ollama server."""
 
     def __init__(self):
         self.calls: list[str] = []
@@ -52,9 +52,9 @@ class _FakeOllamaClient:
     def generate(self, prompt: str, system: str | None = None, json_mode: bool = False) -> str:
         self.calls.append(prompt)
         if json_mode:
-            # استجابة IndependentTestReviewer: حالة اختبار إضافية مستقلة
+            # IndependentTestReviewer response: an additional independent test case.
             return '[{"input": "one two", "expected_output": "two one"}]'
-        # استجابة OllamaSynthesizer: جسم دالة run() فقط
+        # OllamaSynthesizer response: the ``run()`` function body only.
         return "return ' '.join(str(input_data).split()[::-1])"
 
 
@@ -122,17 +122,17 @@ class TestCapabilityEvolution(unittest.TestCase):
         result = self.evolution.propose_capability("text-node", spec)
         self.assertTrue(result.approved, result.reason)
 
-        # نموذج Ollama استُدعي مرتين حقيقيتين: كتابة المنطق + مراجعة مستقلة.
+        # The fake Ollama client is called twice: logic generation plus independent review.
         self.assertEqual(len(self.fake_ollama.calls), 2)
 
         pending = self.pending_store.list_pending()
         self.assertEqual(len(pending), 1)
 
-        # لم تُربَط القدرة بعد — لا يمكن تنفيذها، ولا أُضيفت لمهارات العقدة.
+        # The capability is not bound yet, cannot execute, and is absent from node skills.
         self.assertFalse(self.capabilities.find_by_name("text.reverse_words"))
         self.assertNotIn("text.reverse_words", [s.capability for s in NODE_ROLES["text-node"].specs])
 
-        # إشعار حقيقي وصل لمحادثة الإدارة.
+        # A local delivery callback received an administrative notification.
         self.assertTrue(any("text.reverse_words" in text for _, text in self.sent_messages))
 
     def test_human_approval_via_telegram_binds_capability_and_evolves_node_role(self):
@@ -154,7 +154,7 @@ class TestCapabilityEvolution(unittest.TestCase):
         reply2 = self.telegram.handle_incoming_message(self.admin_chat_id, f"/approve {approval_id}")
         self.assertEqual(reply2, "✅")
 
-        # الآن: القدرة مربوطة فعليًا، وقابلة للتنفيذ الحقيقي عبر LocalExecutor.
+        # The capability is now bound and can execute through LocalExecutor.
         descriptors = self.capabilities.find_by_name("text.reverse_words")
         self.assertEqual(len(descriptors), 1)
         capability_id = descriptors[0].capability_id
@@ -169,7 +169,7 @@ class TestCapabilityEvolution(unittest.TestCase):
         self.assertTrue(outcome.success, outcome.error)
         self.assertEqual(outcome.output, "three two one")
 
-        # العقدة "تطوّرت لنفسها": مهاراتها الآن تتضمن القدرة الجديدة.
+        # The node's skills now include the new capability.
         self.assertIn("text.reverse_words", [s.capability for s in NODE_ROLES["text-node"].specs])
 
 
