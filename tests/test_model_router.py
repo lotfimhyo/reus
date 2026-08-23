@@ -53,7 +53,7 @@ def test_selects_cheapest_by_default(router: ModelRouter):
 
 def test_filters_by_required_capability(router: ModelRouter):
     model = router.select(TaskRequirements(required_capabilities=frozenset({"reasoning"})))
-    assert model.name == "balanced"  # الأرخص من بين من يدعم reasoning
+    assert model.name == "balanced"  # The cheapest model that supports reasoning.
 
 
 def test_no_suitable_model_for_unknown_capability(router: ModelRouter):
@@ -88,7 +88,7 @@ def test_filters_by_max_cost(router: ModelRouter):
 
 def test_prefer_fastest(router: ModelRouter):
     model = router.select(TaskRequirements(required_capabilities=frozenset({"reasoning"}), prefer="fastest"))
-    assert model.name == "balanced"  # أسرع من يدعم reasoning (rank أقل)
+    assert model.name == "balanced"  # The fastest model that supports reasoning (lower rank).
 
 
 def test_prefer_most_capable(router: ModelRouter):
