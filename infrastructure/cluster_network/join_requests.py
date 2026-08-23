@@ -48,11 +48,12 @@ class PendingJoinRequest:
 
 
 class PendingJoinStore:
-    """طلبات انضمام مقيدة بزمن، اختيارية الحفظ على القرص.
+    """Time-bounded join requests with optional on-disk persistence.
 
-    تخزن هذه الطبقة شهادات عامة وبيانات تعريف عقدة فقط، لا مفاتيح خاصة. وعند
-    تفعيل persist_path تحفظ الطلبات الذرية حتى لا تسقط موافقة إدارية معلقة عند
-    إعادة تشغيل منسق العنقود.
+    This layer stores public certificates and node identity metadata only, not
+    private keys. When `persist_path` is enabled, it saves requests atomically
+    so that a pending administrator approval survives a cluster coordinator
+    restart.
     """
 
     def __init__(
