@@ -4,7 +4,7 @@
 # Contact: Contact@reulink.app
 
 """
-اختبارات VaultSecretsProvider عبر حقن عميل hvac وهمي.
+VaultSecretsProvider tests using an injected fake hvac client.
 """
 from __future__ import annotations
 
