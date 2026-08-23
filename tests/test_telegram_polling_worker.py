@@ -61,7 +61,7 @@ def test_handle_update_ignores_non_text_updates():
     worker = TelegramPollingWorker(client=client, service=service)
 
     worker._handle_update({"update_id": 1, "edited_message": {"chat": {"id": 1}}})
-    worker._handle_update({"update_id": 2, "message": {"chat": {"id": 1}}})  # بلا "text"
+    worker._handle_update({"update_id": 2, "message": {"chat": {"id": 1}}})  # No "text" field.
 
     assert service.handled == []
     assert client.sent == []
