@@ -4,12 +4,12 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-يثبت إصلاح ثغرة حقيقية: X-Forwarded-For كان يُوثَق به دائمًا بلا شرط في
-تحديد هوية العميل لتحديد المعدل — أي مهاجم يستطيع تجاوز كل تحديد معدل في
-المشروع (بما فيه حماية تخمين المفتاح الإداري نفسها) بمجرد تزوير قيمة
-مختلفة لهذه الترويسة مع كل طلب. الافتراضي الآن: تجاهل الترويسة تمامًا
-واستخدام عنوان TCP الفعلي (REUS_TRUST_PROXY_HEADERS=false)، إلا إذا أكَّد
-المُشغِّل صراحة أنه خلف وكيل عكسي حقيقي.
+Proves a real vulnerability fix: X-Forwarded-For was always trusted without a
+condition when identifying clients for rate limiting. An attacker could bypass
+every project rate limit, including administrative-key guessing protection, by
+forging a different header value on each request. The default now ignores the
+header entirely and uses the actual TCP address (REUS_TRUST_PROXY_HEADERS=false)
+unless the operator explicitly confirms deployment behind a real reverse proxy.
 """
 from __future__ import annotations
 
@@ -37,9 +37,9 @@ class TestClientKeySpoofingProtection(unittest.TestCase):
         self.assertEqual(client_key_from_request(request), "203.0.113.5")
 
     def test_spoofed_header_cannot_generate_unlimited_distinct_keys_by_default(self):
-        """الاختبار الحاسم: قيم مختلفة لـX-Forwarded-For يجب أن تُحلَّل جميعًا
-        لنفس المفتاح (عنوان TCP الفعلي) طالما لم يُفعَّل الوثوق بالوكيل —
-        هذا هو ما يمنع تجاوز تحديد المعدل بتزوير الترويسة."""
+        """Critical test: different X-Forwarded-For values must all resolve
+        to the same key (the actual TCP address) while proxy trust is disabled.
+        This prevents bypassing rate limits by forging the header."""
         keys = {
             client_key_from_request(_FakeRequest({"x-forwarded-for": f"10.0.0.{i}"}, "203.0.113.5"))
             for i in range(20)
