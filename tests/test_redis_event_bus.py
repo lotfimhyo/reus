@@ -4,9 +4,10 @@
 # Contact: Contact@reulink.app
 
 """
-اختبارات تكامل على خادم Redis فعلي (يعمل محليًا في هذه البيئة). بما أن Redis Pub/Sub
-غير متزامن بطبيعته (خيط استماع منفصل)، تنتظر هذه الاختبارات وصول الأحداث عبر
-threading.Event بمهلة زمنية معقولة بدل افتراض التسليم الفوري.
+Integration tests for a real, locally configured Redis server. Because Redis
+Pub/Sub is inherently asynchronous (with a separate listener thread), these
+tests wait for event delivery using ``threading.Event`` and a reasonable
+timeout instead of assuming immediate delivery.
 """
 from __future__ import annotations
 
@@ -40,7 +41,7 @@ def _wait_for(predicate, timeout: float = 2.0) -> bool:
 def test_exact_subscription_receives_matching_event(bus: RedisEventBus):
     received: list[Event] = []
     bus.subscribe("agent.created", lambda e: received.append(e))
-    time.sleep(0.1)  # إتاحة وقت لاكتمال الاشتراك قبل النشر
+    time.sleep(0.1)  # Allow subscription setup to complete before publishing.
 
     bus.publish(Event(name="agent.created", payload={"agent_id": "a1"}))
 
@@ -83,7 +84,7 @@ def test_multiple_handlers_on_same_event_all_invoked(bus: RedisEventBus):
 
 
 def test_separate_bus_instances_communicate_across_processes(bus: RedisEventBus):
-    """يحاكي عقدتين منفصلتين: ناشر على اتصال ومشترك على اتصال مختلف تمامًا."""
+    """Simulates separate nodes: a publisher and subscriber use distinct connections."""
     subscriber_bus = RedisEventBus(redis_url=REDIS_URL)
     try:
         received = threading.Event()
