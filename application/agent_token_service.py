@@ -3,12 +3,12 @@
 # Organization: Reulink
 # Contact: Contact@reulink.app
 
-"""
-Application Layer: AgentTokenService.
-حالات الاستخدام: إصدار رمز جديد لوكيل (يتحقق من وجود الوكيل أولًا، ومن أن أي
-نطاق مطلوب لا يتجاوز صلاحيات الوكيل الحالية)، سرد رموز وكيل (بلا نص صافٍ أو
-hash — بيانات وصفية فقط)، إلغاء رمز، والتحقق من رمز عند المصادقة (يُستخدم من
-infrastructure/security.py على حدود HTTP).
+"""Application layer for agent tokens.
+
+It issues a new token only for an existing agent and only within that agent's
+current permissions, lists token metadata without plaintext or hashes, revokes
+tokens, and authenticates a token at HTTP boundaries through
+`infrastructure/security.py`.
 """
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from infrastructure.token_hashing import generate_plaintext_token, hash_token
 @dataclass
 class IssuedToken:
     token: AgentToken
-    plaintext: str  # يُعرَض للمستدعي مرة واحدة فقط؛ لا يُخزَّن في أي مكان بعد هذه اللحظة
+    plaintext: str  # Returned once to the caller and never stored after that moment.
 
 
 class AgentTokenService:
@@ -32,10 +32,10 @@ class AgentTokenService:
         self._agents = agent_repo
 
     def issue_token(self, agent_id: str, label: str = "", scopes: set[str] | None = None) -> IssuedToken:
-        agent = self._agents.get(agent_id)  # يرفع AgentNotFound إن لم يكن الوكيل موجودًا
+        agent = self._agents.get(agent_id)  # Raises AgentNotFound when the agent does not exist.
 
         if scopes is None:
-            # لا نطاق مُحدَّد صراحة => يرث الرمز كل صلاحيات الوكيل الحالية (السلوك السابق، متوافق للخلف)
+            # No explicit scopes: inherit all current agent permissions for backward compatibility.
             effective_scopes = frozenset(agent.permissions)
         else:
             requested = frozenset(scopes)
@@ -63,10 +63,9 @@ class AgentTokenService:
         return token
 
     def authenticate(self, plaintext: str) -> AgentToken | None:
-        """
-        يتحقق من رمز وارد في طلب HTTP. يُعيد None لأي سبب فشل (غير موجود، مُلغى)
-        بدل رفع استثناء، لأن هذا مسار تحقق متكرر على حدود الشبكة، وليس خطأ داخليًا.
-        """
+        """Authenticate a token supplied by an HTTP request. Return None for a
+        missing or revoked token because this is a repeated network-boundary
+        check, not an internal exceptional condition."""
         token = self._tokens.get_by_hash(hash_token(plaintext))
         if token is None or token.revoked:
             return None
@@ -75,10 +74,10 @@ class AgentTokenService:
         return token
 
     def get_effective_scopes(self, token: AgentToken) -> frozenset[str]:
-        """
-        تقاطع نطاق الرمز المخزَّن مع صلاحيات الوكيل **الحالية** (وليس وقت الإصدار).
-        هذا يضمن أن تقليص صلاحيات وكيل لاحقًا يُقلّص تلقائيًا الحد الأقصى الفعلي
-        لكل رموزه القديمة أيضًا، دون الحاجة لإعادة إصدارها — دفاع متعدد الطبقات.
+        """Intersect stored token scopes with the agent's **current** permissions.
+
+        Reducing an agent's permissions therefore also reduces every older
+        token's effective authority without requiring token reissuance.
         """
         agent = self._agents.get(token.agent_id)
         return token.scopes & agent.permissions
