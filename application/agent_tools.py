@@ -3,17 +3,14 @@
 # Organization: Reulink
 # Contact: Contact@reulink.app
 
-"""
-Application Layer: أدوات الوكيل (Agent Tools).
-يحوّل قدرات النظام الحقيقية الموجودة مسبقًا إلى "أدوات" (Tools) بصيغة JSON Schema
-يمكن لأي نموذج يدعم Tool Use استدعاءها أثناء توليد استجابته. التنفيذ الفعلي هنا
-حقيقي بالكامل — ليس Placeholder:
-- أدوات الذاكرة (search_memory, store_memory) تمرّ عبر MemoryService الذي يفرض
-  صلاحيات الوكيل (read:memory/write:memory) الموجودة مسبقًا.
-- أدوات التعاون (create_task, list_agents) تمرّ عبر OrchestratorService/AgentRepository
-  الموجودين مسبقًا، وتفرض صلاحية 'spawn:subagent' (كانت معرَّفة في ALLOWED_PERMISSIONS
-  منذ الحلقة الأولى دون استخدام فعلي — هذه أول حلقة تُفعّلها).
-لذا لا يمكن لأداة "منح" الوكيل صلاحية لا يملكها أصلًا، في كل الحالتين.
+"""Expose existing system capabilities as JSON-Schema tools for models that
+support tool use. These are real implementations, not placeholders.
+
+Memory tools (`search_memory`, `store_memory`) pass through `MemoryService`,
+which enforces `read:memory` and `write:memory`. Collaboration tools
+(`create_task`, `list_agents`) pass through `OrchestratorService` and
+`AgentRepository` and enforce `spawn:subagent`. No tool can grant authority an
+agent does not already possess.
 """
 from __future__ import annotations
 
@@ -29,7 +26,7 @@ from domain.workflow import TaskSpec
 
 class UnknownTool(Exception):
     def __init__(self, tool_name: str):
-        super().__init__(f"أداة غير معروفة: '{tool_name}'")
+        super().__init__(f"Unknown tool: '{tool_name}'")
 
 
 @dataclass(frozen=True)
@@ -39,18 +36,18 @@ class ToolSpec:
     input_schema: dict
 
     def to_anthropic_format(self) -> dict:
-        """صيغة الأداة كما تتوقعها Anthropic Messages API (حقل tools)."""
+        """Format the tool for the Anthropic Messages API `tools` field."""
         return {"name": self.name, "description": self.description, "input_schema": self.input_schema}
 
 
 SEARCH_MEMORY_TOOL = ToolSpec(
     name="search_memory",
-    description="ابحث في ذاكرة الوكيل الدلالية عن مقاطع ذات صلة بموضوع أو سؤال معيّن.",
+    description="Search the agent's semantic memory for passages relevant to a topic or question.",
     input_schema={
         "type": "object",
         "properties": {
-            "query": {"type": "string", "description": "نص البحث"},
-            "top_k": {"type": "integer", "description": "عدد النتائج الأقصى (افتراضيًا 5)"},
+            "query": {"type": "string", "description": "Search text."},
+            "top_k": {"type": "integer", "description": "Maximum results (default: 5)."},
         },
         "required": ["query"],
     },
@@ -58,12 +55,12 @@ SEARCH_MEMORY_TOOL = ToolSpec(
 
 STORE_MEMORY_TOOL = ToolSpec(
     name="store_memory",
-    description="خزّن معلومة أو ملاحظة جديدة في ذاكرة الوكيل الدلالية لاسترجاعها لاحقًا.",
+    description="Store new information or a note in the agent's semantic memory for later retrieval.",
     input_schema={
         "type": "object",
         "properties": {
-            "content": {"type": "string", "description": "المحتوى المراد تخزينه"},
-            "tags": {"type": "array", "items": {"type": "string"}, "description": "وسوم اختيارية للتصنيف"},
+            "content": {"type": "string", "description": "Content to store."},
+            "tags": {"type": "array", "items": {"type": "string"}, "description": "Optional classification tags."},
         },
         "required": ["content"],
     },
@@ -75,18 +72,18 @@ MEMORY_TOOLS: list[ToolSpec] = [SEARCH_MEMORY_TOOL, STORE_MEMORY_TOOL]
 CREATE_TASK_TOOL = ToolSpec(
     name="create_task",
     description=(
-        "أنشئ مهمة جديدة تُنفَّذ فعليًا عبر منسّق المهام في النظام. يمكن إسنادها لنفس "
-        "الوكيل (تخطيط ذاتي متعدد الخطوات) أو لوكيل آخر بمعرّفه (تفويض/تعاون حقيقي "
-        "بين وكلاء متعددين). تتطلب صلاحية 'spawn:subagent'."
+        "Create a task executed through the system orchestrator. Assign it to the current "
+        "agent for multi-step planning or to another agent by ID for real delegation. "
+        "Requires the 'spawn:subagent' permission."
     ),
     input_schema={
         "type": "object",
         "properties": {
-            "task_name": {"type": "string", "description": "اسم مختصر يصف المهمة"},
-            "prompt": {"type": "string", "description": "التعليمة/الطلب الذي سيُنفَّذ كمهمة"},
+            "task_name": {"type": "string", "description": "Short task name."},
+            "prompt": {"type": "string", "description": "Instruction or request to execute as a task."},
             "target_agent_id": {
                 "type": "string",
-                "description": "معرّف الوكيل الذي سينفّذ المهمة. اتركه فارغًا لتكليف نفس الوكيل الحالي.",
+                "description": "Agent ID that executes the task. Leave empty to assign the current agent.",
             },
         },
         "required": ["task_name", "prompt"],
@@ -95,7 +92,7 @@ CREATE_TASK_TOOL = ToolSpec(
 
 LIST_AGENTS_TOOL = ToolSpec(
     name="list_agents",
-    description="اعرض قائمة الوكلاء المتاحين في النظام (المعرّف، الاسم، الحالة) لاختيار من يُفوَّض إليه التعاون. تتطلب صلاحية 'spawn:subagent'.",
+    description="List available agents (ID, name, state) to choose a collaboration delegate. Requires 'spawn:subagent'.",
     input_schema={"type": "object", "properties": {}, "required": []},
 )
 
@@ -105,14 +102,11 @@ ALL_TOOLS: list[ToolSpec] = MEMORY_TOOLS + COLLABORATION_TOOLS
 
 
 class AgentToolExecutor:
-    """
-    ينفّذ استدعاء أداة فعليًا نيابة عن وكيل محدد. يُبنى مرة واحدة لكل طلب توجيه
-    (مقيَّد بـ agent_id واحد)، حتى لا تحتاج كل أداة لتمرير agent_id بنفسها —
-    وهذا يمنع أيضًا أي محاولة (عبر خطأ في النموذج أو تلاعب) لتمرير agent_id مختلف.
+    """Execute tool calls for one bound agent identity per routing request.
 
-    orchestrator وagent_repo اختياريان: إن لم يُمرَّرا (None)، تبقى أدوات الذاكرة
-    فقط متاحة، وتُرفع UnknownTool عند محاولة استخدام create_task/list_agents —
-    حتى لا يُفترض ضمنيًا وجود منسّق مهام في كل سياق يستخدم أدوات الذاكرة فقط.
+    Binding prevents a model error or manipulation from passing a different
+    `agent_id`. When the optional orchestrator and repository are absent, only
+    memory tools are available and collaboration-tool calls raise `UnknownTool`.
     """
 
     def __init__(
@@ -172,13 +166,14 @@ class AgentToolExecutor:
         return {"memory_id": record.memory_id, "status": "stored"}
 
     def _require_spawn_permission(self) -> dict[str, Any] | None:
-        """يُعيد dict خطأ جاهزًا للإرجاع مباشرة إن كانت الصلاحية مفقودة، أو None إن كانت متوفرة."""
+        """Return a ready error dictionary when spawn permission is absent, or
+        `None` when it is available."""
         try:
             agent = self._agent_repo.get(self._agent_id)
         except AgentNotFound as exc:
             return {"error": str(exc)}
         if "spawn:subagent" not in agent.permissions:
-            return {"error": f"الوكيل '{self._agent_id}' لا يملك صلاحية 'spawn:subagent' اللازمة لهذه الأداة"}
+            return {"error": f"Agent '{self._agent_id}' lacks the 'spawn:subagent' permission required for this tool."}
         return None
 
     def _create_task(self, tool_input: dict) -> dict[str, Any]:
