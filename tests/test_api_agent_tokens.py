@@ -163,7 +163,7 @@ def test_read_only_scoped_token_can_search_but_not_store(client: TestClient):
         headers={"X-API-Key": readonly_token},
     )
     assert write_resp.status_code == 403
-    assert "نطاق" in write_resp.json()["detail"]
+    assert "does not include the required permission" in write_resp.json()["detail"]
 
 
 def test_write_only_scoped_token_can_store_but_not_search(client: TestClient):

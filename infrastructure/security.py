@@ -17,13 +17,11 @@ logger = logging.getLogger("reus_veritas.security")
 
 
 def _enforce_admin_rate_limit(request: Request) -> None:
-    """يُطبَّق قبل أي مقارنة مفتاح في هذا الملف — عمدًا، لا بعدها. المفتاح
-    الإداري (REUS_API_KEY) أقوى صلاحية في النظام؛ لو طُبِّق تحديد المعدل
-    بعد رفض 401، لَما احتُسِبت محاولات تخمين المفتاح الفاشلة ضمن الحد
-    أصلًا، فيبقى تخمينه مفتوحًا بلا حدود على نفس السطح الشبكي العام الذي
-    يخدم /chat. نفس الترتيب المطبَّق فعليًا على /chat (انظر api/routes/
-    chat.py) — هنا مركزيًا لكل نقاط النهاية الإدارية دفعة واحدة، لا مبعثرًا
-    عبر كل ملف مسارات على حدة، حتى لا يُنسى سهوًا في ملف جديد مستقبلًا."""
+    """Apply before every key comparison in this module, deliberately. Because
+    REUS_API_KEY has the strongest privilege, applying a limit only after a 401
+    would omit failed guessing attempts. The same ordering used by /chat is
+    centralized here for every administrative endpoint so a future route cannot
+    accidentally omit it."""
     from container import get_admin_rate_limiter
 
     limiter = get_admin_rate_limiter()
@@ -31,36 +29,31 @@ def _enforce_admin_rate_limit(request: Request) -> None:
     if not allowed:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="تجاوزت الحد المسموح من الطلبات. حاول لاحقًا.",
+            detail="Request limit exceeded. Try again later.",
             headers={"Retry-After": str(int(retry_after) + 1)},
         )
 
 
 def verify_api_key(request: Request, x_api_key: str | None = Header(default=None)) -> str:
-    """
-    يتحقق من مفتاح API عبر مقارنة آمنة زمنيًا (hmac.compare_digest)
-    لمنع Timing Attacks. يرفض التنفيذ غير الآمن (طلب بلا مفتاح أو مفتاح خاطئ).
-    """
+    """Verify an API key with a timing-safe hmac.compare_digest comparison.
+    Reject a missing or incorrect key before execution."""
     _enforce_admin_rate_limit(request)
     settings: Settings = get_settings()
     if not x_api_key or not hmac.compare_digest(x_api_key, settings.api_key):
         logger.warning("unauthorized_access_attempt")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="مفتاح API مفقود أو غير صحيح",
+            detail="API key is missing or invalid",
         )
     return x_api_key
 
 
 def verify_user_api_key(x_api_key: str | None = Header(default=None)) -> str:
-    """
-    اعتمادية منفصلة تمامًا عن verify_api_key — تتحقق حصرًا من user_api_key
-    (مفتاح واجهة الويب العامة للمستخدمين). **لا** تقبل api_key الإداري
-    كبديل — هذا الفصل مقصود: من يملك المفتاح الإداري الكامل الصلاحيات لا
-    يحصل تلقائيًا على وصول لمسار المستخدمين، والعكس. كل مسار يتحقق من بيانات
-    اعتماده الخاصة فقط. (تحديد المعدل لهذا المسار يُطبَّق في api/routes/
-    chat.py على مستوى الموجِّه مباشرة، لا هنا — راجع enforce_chat_rate_limit.)
-    """
+    """Verify only user_api_key, separately from verify_api_key. An
+    administrative api_key is not accepted as a substitute, and vice versa.
+    Each route validates only its intended credential. Rate limiting for this
+    surface is applied directly by api/routes/chat.py through
+    enforce_chat_rate_limit."""
     settings: Settings = get_settings()
     pairing_authorized = False
     if x_api_key:
@@ -71,26 +64,23 @@ def verify_user_api_key(x_api_key: str | None = Header(default=None)) -> str:
         logger.warning("unauthorized_user_access_attempt")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="مفتاح API الخاص بالمستخدمين مفقود أو غير صحيح",
+            detail="User API key is missing or invalid",
         )
     return x_api_key
 
 
 def verify_agent_access(agent_id: str, request: Request, x_api_key: str | None = Header(default=None)) -> str:
-    """
-    يسمح بالوصول إما عبر مفتاح API الرئيسي (صلاحية كاملة، للاستخدام الإداري)،
-    أو عبر رمز خاص بوكيل واحد (Self-Service) بشرط أن يطابق agent_id في مسار
-    الطلب بالضبط — رمز الوكيل A لا يمنحه أي صلاحية على مسارات الوكيل B إطلاقًا.
-    يتحقق من الهوية فقط، دون أي فحص نطاق (Scope)؛ يُستخدم للمسارات التي لا
-    تحتاج صلاحية محدَّدة. للمسارات التي تحتاج صلاحية بعينها استخدم require_agent_scope.
-    """
+    """Allow access through the fully privileged administrative key or a
+    self-service token for this exact agent_id. An agent A token never grants
+    access to agent B. This checks identity only; routes requiring a specific
+    permission must use require_agent_scope."""
     _enforce_admin_rate_limit(request)
     settings: Settings = get_settings()
     if x_api_key and hmac.compare_digest(x_api_key, settings.api_key):
         return agent_id
 
     if x_api_key:
-        from container import get_agent_token_service  # استيراد مؤجَّل لتفادي استيراد دائري مع container.py
+        from container import get_agent_token_service  # Deferred import avoids a cycle with container.py.
 
         token = get_agent_token_service().authenticate(x_api_key)
         if token is not None and hmac.compare_digest(token.agent_id, agent_id):
@@ -99,19 +89,17 @@ def verify_agent_access(agent_id: str, request: Request, x_api_key: str | None =
     logger.warning("unauthorized_agent_access_attempt", extra={"agent_id": agent_id})
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="مطلوب مفتاح API رئيسي صالح أو رمز خاص بهذا الوكيل بالتحديد",
+        detail="A valid primary API key or a token for this exact agent is required",
     )
 
 
 def require_agent_scope(required_permission: str):
-    """
-    مصنع اعتماديات (Dependency Factory): يُعيد اعتمادية FastAPI تتحقق من الهوية
-    (كـ verify_agent_access تمامًا) **بالإضافة** إلى أن الرمز المستخدَم يشمل
-    نطاقه الفعلي (Effective Scopes — تقاطع نطاق الرمز مع صلاحيات الوكيل الحالية)
-    الصلاحية المطلوبة تحديدًا لهذا المسار. مفتاح API الرئيسي يتجاوز فحص النطاق
-    (وصول إداري كامل)؛ فحص صلاحيات الوكيل نفسه (domain/entities.py) يبقى مستقلًا
-    ويُطبَّق لاحقًا في MemoryService بصرف النظر عن نتيجة هذه الاعتمادية.
-    """
+    """Return a FastAPI dependency that checks identity like
+    verify_agent_access and also verifies that the token's effective scopes—the
+    intersection of token scopes and current agent permissions—include the
+    required permission. The primary API key bypasses scope checks as fully
+    privileged administrative access. Agent authorization remains independently
+    enforced later by MemoryService."""
 
     def dependency(agent_id: str, request: Request, x_api_key: str | None = Header(default=None)) -> str:
         _enforce_admin_rate_limit(request)
@@ -137,13 +125,13 @@ def require_agent_scope(required_permission: str):
                 )
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"نطاق هذا الرمز لا يشمل الصلاحية المطلوبة: '{required_permission}'",
+                    detail=f"This token does not include the required permission: '{required_permission}'",
                 )
 
         logger.warning("unauthorized_agent_access_attempt", extra={"agent_id": agent_id})
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="مطلوب مفتاح API رئيسي صالح أو رمز خاص بهذا الوكيل بالتحديد",
+            detail="A valid primary API key or a token for this exact agent is required",
         )
 
     return dependency
