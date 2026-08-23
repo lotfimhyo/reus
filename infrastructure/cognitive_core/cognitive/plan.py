@@ -7,8 +7,8 @@ Copyright: © Lotfi Mahiddine
 Architecture: Veritas AI
 
 Plan generation and evaluation — steps 3 and 4 of the cognitive cycle
-("توليد عدة خطط" و"تقييم كل خطة وفق: التكلفة، المخاطر...") from the master
-architecture doc, section 2.5.
+(generate multiple plans and evaluate each by cost and risk) from the master
+architecture document, section 2.5.
 
 Design decision for this phase: each candidate capability that matches the
 goal becomes its own single-step Plan. Multi-step plan composition (chaining
@@ -75,7 +75,7 @@ class Plan:
     def score(self) -> float:
         """Lower is better. Combines total cost with a risk penalty so plan
         selection reflects both dimensions the vision doc requires
-        ("التكلفة... المخاطر")."""
+        (cost and risk)."""
         return self.total_estimated_cost + sum(
             _RISK_PENALTY[s.risk_level] for s in self.steps
         )
@@ -113,7 +113,7 @@ def select_best_plan(
     `score_adjustment`, if given, is added on top of each plan's declared
     Plan.score — this is how learned reliability data (Layer 5's Self-
     Review / Knowledge Extraction, see cognitive/learning/) biases future
-    plan selection ("تحسين أسلوب التفكير للمستقبل") without needing to
+    plan selection (improving future reasoning) without needing to
     mutate the plan's own cost/risk-based score, which stays a pure
     reflection of the capability's *declared* metadata.
     """
