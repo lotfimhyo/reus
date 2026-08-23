@@ -3,11 +3,11 @@
 # Organization: Reulink
 # Contact: Contact@reulink.app
 
-"""
-Application Layer: ObservabilityService.
-مكوّن سلبي بحت: يشترك في "*" على EventBus (بلا أي تأثير على منطق الأعمال) ليسجّل
-كل حدث في EventLogRepository، ويبني ملخصًا مجمَّعًا حيًّا من المستودعات الفعلية
-(الوكلاء وWorkflows) عند الطلب — وليس من ذاكرة مؤقتة قد تكون قديمة.
+"""Passive observability component.
+
+It subscribes to every EventBus event without influencing business logic,
+records each event in `EventLogRepository`, and builds summaries on demand from
+actual agent and workflow repositories rather than stale cached state.
 """
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ class ObservabilityService:
         self._bus = event_bus
 
     def start(self) -> None:
-        """يبدأ تسجيل كل الأحداث. يُستدعى مرة واحدة عند إقلاع التطبيق (lifespan)."""
+        """Begin recording all events once during application startup."""
         self._bus.subscribe("*", self._record_event)
 
     def _record_event(self, event: Event) -> None:
