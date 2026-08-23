@@ -50,7 +50,8 @@ OTHER_PROVIDER_MODEL = ModelProfile(
 
 
 class FakeModelClient(ModelClient):
-    """بديل اختباري لمنفذ ModelClient — يتحقق من صحة منطق ModelRoutingExecutor دون أي شبكة."""
+    """Test double for ModelClient that verifies ModelRoutingExecutor logic
+    without making any network call."""
 
     def __init__(self, response: str = "fake response", should_fail: bool = False) -> None:
         self.response = response
@@ -119,7 +120,8 @@ def test_execute_routes_to_capable_when_reasoning_required(router: ModelRouter, 
 
 
 def test_execute_dispatches_to_correct_provider_client(multi_provider_router: ModelRouter, registry: ModelClientRegistry):
-    """التحقق الحاسم أن التوجيه متعدد المزوّدين يستدعي عميل المزوّد الصحيح فعليًا."""
+    """Verify that multi-provider routing invokes the matching registered
+    provider client."""
     executor = ModelRoutingExecutor(router=multi_provider_router, client_registry=registry)
     task = TaskNode(
         name="cheapest-overall",
@@ -128,7 +130,8 @@ def test_execute_dispatches_to_correct_provider_client(multi_provider_router: Mo
 
     result = executor.execute(task)
 
-    # other-provider-model أرخص من كل نماذج test-provider، فيجب اختياره وعميله تحديدًا
+    # other-provider-model is cheaper than every test-provider model, so its
+    # matching registered client must be selected.
     assert result["model_used"] == "other-provider-model"
     assert result["provider"] == "another-provider"
 
@@ -165,10 +168,8 @@ def test_execute_passes_max_tokens_through(router: ModelRouter, registry: ModelC
 
 
 class ToolCapableFakeClient(ModelClient):
-    """
-    بديل اختباري يدعم invoke_with_tools فعليًا، لمحاكاة سلوك عميل حقيقي يستدعي
-    الأداة مرة واحدة ثم يُنتج ردًا نهائيًا — دون الحاجة لشبكة أو مفتاح API حقيقيين.
-    """
+    """Test double supporting invoke_with_tools. It simulates a client that
+    calls one tool and returns a final response without a network or API key."""
 
     def __init__(self) -> None:
         self.dispatch_calls: list[tuple[str, dict]] = []
@@ -259,11 +260,11 @@ def test_execute_with_tools_raises_when_client_lacks_support(
         executor.execute(task)
 
 
-# ---------- أدوات التعاون عبر ModelRoutingExecutor ----------
+# ---------- Collaboration tools through ModelRoutingExecutor ----------
 
 
 class ToolNameCapturingClient(ModelClient):
-    """يسجّل أسماء الأدوات المعروضة عليه فقط، دون استدعاء أي منها."""
+    """Records only the offered tool names without calling any tool."""
 
     def __init__(self, reply: str = "لا أدوات مستخدَمة") -> None:
         self.offered_tool_names: list[str] = []
@@ -278,7 +279,7 @@ class ToolNameCapturingClient(ModelClient):
 
 
 class DelegatingFakeClient(ModelClient):
-    """يستدعي أداة create_task فعليًا لمحاكاة نموذج يفوّض مهمة لوكيل آخر."""
+    """Calls create_task to simulate a model delegating work to another agent."""
 
     def invoke(self, model_id: str, prompt: str, max_tokens: int = 1024) -> str:
         raise AssertionError("لا يجب استدعاء invoke() العادية عند enable_tools=True")
@@ -305,7 +306,7 @@ def test_collaboration_tools_offered_only_when_orchestrator_and_agent_repo_provi
     client = ToolNameCapturingClient()
     registry = ModelClientRegistry({"test-provider": client, "another-provider": FakeModelClient()})
 
-    # بلا orchestrator/agent_repo: أدوات الذاكرة فقط
+    # Without orchestrator/agent_repo: only memory tools are offered.
     executor_without = ModelRoutingExecutor(router=router, client_registry=registry, memory_service=memory_service)
     executor_without.execute(
         TaskNode(name="t1", agent_id=agent.agent_id, payload={"prompt": "x", "enable_tools": True})
@@ -313,7 +314,7 @@ def test_collaboration_tools_offered_only_when_orchestrator_and_agent_repo_provi
     assert "create_task" not in client.offered_tool_names
     assert "list_agents" not in client.offered_tool_names
 
-    # مع orchestrator/agent_repo: أدوات التعاون تظهر أيضًا
+    # With orchestrator/agent_repo: collaboration tools are also offered.
     executor_with = ModelRoutingExecutor(
         router=router,
         client_registry=registry,
@@ -351,7 +352,7 @@ def test_model_can_delegate_task_to_another_agent_end_to_end(
         agent_repo=agent_repo,
     )
 
-    # الـ "prompt" هنا يُستخدم أيضًا كـ target_agent_id بفضل DelegatingFakeClient لتبسيط الاختبار
+    # DelegatingFakeClient also uses this prompt as target_agent_id to simplify the test.
     task = TaskNode(
         name="coordination-task",
         agent_id=coordinator.agent_id,
