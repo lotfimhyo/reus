@@ -112,5 +112,5 @@ def test_retry_does_not_cascade_cancel(orchestrator: OrchestratorService):
     updated = orchestrator.fail_task(workflow.workflow_id, task_id, error="temporary")
 
     task = updated.tasks[task_id]
-    assert task.state == TaskState.READY  # PENDING ثم تُرقّى فورًا إلى READY لأنها بلا تبعيات
+    assert task.state == TaskState.READY  # PENDING is immediately promoted to READY because it has no dependencies.
     assert task.retry_count == 1
