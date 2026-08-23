@@ -7,7 +7,8 @@ Copyright: © Lotfi Mahiddine
 Architecture: Veritas AI
 
 Join-time snapshot exchange, per architecture doc section 3.4 step 4:
-"يُعيد لقطة ابتدائية (قدرات + معرفة دلالية حاليتين) لتسريع إحماء B."
+returns an initial snapshot of current capabilities and semantic knowledge to
+accelerate node B's warm-up.
 
 Scope decision: this is a ONE-TIME bootstrap transfer at the moment of
 joining, not the ongoing periodic gossip described in the doc's sections 4
