@@ -95,7 +95,8 @@ class TestCloudDeployNode(unittest.TestCase):
 
     def test_deploy_refuses_without_source_fetch_cmd_configured(self):
         self._configure_cloud(with_source_fetch_cmd=False)
-        # التهيئة نفسها تُرفَض كاملة بلا source_fetch_cmd — لا تهيئة جزئية.
+        # The configuration itself is rejected without source_fetch_cmd; no
+        # partial configuration is retained.
         self.assertTrue(any("source_fetch_cmd" in text for _, text in self.sent_messages))
         reply = self.telegram.handle_incoming_message(self.admin_chat_id, "/deploy_node text-node")
         self.assertEqual(reply, "✅")
