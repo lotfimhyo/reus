@@ -2,8 +2,8 @@
 -- Developer: lotfi Mahiddine
 -- Organization: Reulink
 --
--- طبّق هذا المخطط فقط إذا قرر المطور تفعيل مرآة Supabase للأحداث المعتمدة.
--- لا يخزن هذا الجدول الذاكرة الخام أو الأسرار أو محتوى المحادثة.
+-- Apply this schema only if the developer chooses to enable a Supabase mirror
+-- for approved events. This table never stores raw memory, secrets, or chat content.
 
 create table if not exists public.reus_sync_events (
   event_id text primary key,
@@ -17,8 +17,8 @@ create table if not exists public.reus_sync_events (
 
 alter table public.reus_sync_events enable row level security;
 
--- لا توجد سياسات عامة عمداً. تكتب خدمة Reus الخلفية فقط باستخدام مفتاح خدمة
--- مخزن في بيئتها الآمنة؛ لا يمنح تطبيق المتصفح أي وصول مباشر لهذا الجدول.
+-- No public policies are created intentionally. Only the Reus backend writes
+-- with a service key stored in its secure environment; the browser receives no direct table access.
 
 create or replace function public.touch_reus_sync_events_updated_at()
 returns trigger
