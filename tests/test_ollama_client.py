@@ -4,11 +4,12 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-أول اختبارات مباشرة لـ OllamaClient (infrastructure/agent_factory/support/
-ollama_client.py) — كانت 30% مغطاة. العميل الوحيد المفعَّل فعليًا في
-مسار "التوجيه الذاتي" (Project Phoenix) حسب توثيق الوحدة نفسها. يُختبَر
-هنا عبر محاكاة urllib.request.urlopen — بلا أي اتصال شبكي حقيقي، لأن
-المنطق المُختبَر هو بناء الطلب وتفسير الاستجابة، لا طبقة النقل.
+First direct tests for OllamaClient (infrastructure/agent_factory/support/
+ollama_client.py), which had 30% coverage. According to the module's own
+documentation, it is the only client actually enabled in the "self-routing"
+path (Project Phoenix). It is tested here by mocking urllib.request.urlopen,
+with no live network connection because the logic under test is request
+construction and response interpretation, not the transport layer.
 """
 from __future__ import annotations
 
@@ -21,7 +22,7 @@ from infrastructure.agent_factory.support.ollama_client import OllamaClient, Oll
 
 
 def _fake_response(payload: dict):
-    """يحاكي كائن الاستجابة الذي يُعيده urlopen ضمن `with ... as resp`."""
+    """Simulates the response object returned by urlopen inside `with ... as resp`."""
     response = MagicMock()
     response.read.return_value = json.dumps(payload).encode("utf-8")
     response.__enter__.return_value = response
@@ -82,11 +83,11 @@ class TestOllamaClientGenerate(unittest.TestCase):
 
         sent_body = json.loads(mock_urlopen.call_args[0][0].data)
         self.assertEqual(sent_body["model"], "evolved-model-v2")
-        self.assertEqual(self.client.model, "llama3.1")  # لم يتغيّر الافتراضي
+        self.assertEqual(self.client.model, "llama3.1")  # The default did not change.
 
     @patch("infrastructure.agent_factory.support.ollama_client.urllib.request.urlopen")
     def test_generate_returns_empty_string_when_response_key_missing(self, mock_urlopen):
-        mock_urlopen.return_value = _fake_response({})  # لا مفتاح "response" إطلاقًا
+        mock_urlopen.return_value = _fake_response({})  # No response key at all.
 
         result = self.client.generate("test")
 
