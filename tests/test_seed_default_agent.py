@@ -4,7 +4,8 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-اختبارات لميزة بذر وكيل افتراضي جاهز عند الإقلاع — طلب مباشر من المؤسس.
+Tests for seeding a ready default agent at startup, requested directly by the
+founder.
 """
 from __future__ import annotations
 
