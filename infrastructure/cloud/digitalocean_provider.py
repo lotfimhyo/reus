@@ -67,9 +67,9 @@ class DigitalOceanProvider(CloudProvider):
             "image": _DEFAULT_IMAGE,
         }
         if config.user_data:
-            # حقل user_data مدعوم فعليًا من DigitalOcean API (cloud-init) —
-            # هذا ما يجعل الخادم يشغّل عقدة Reus تلقائيًا عند أول إقلاع، لا
-            # مجرد خادم فارغ يحتاج إعدادًا يدويًا لاحقًا.
+            # The DigitalOcean API supports the user_data field (cloud-init).
+            # It lets the server start a Reus node on first boot rather than
+            # remain an empty server that needs manual setup later.
             body["user_data"] = config.user_data
         result = self._request("POST", "/droplets", config.api_token, body)
         droplet = result["droplet"]
