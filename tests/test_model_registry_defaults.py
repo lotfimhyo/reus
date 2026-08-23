@@ -16,7 +16,7 @@ def test_default_registry_has_at_least_one_model_per_provider():
     router = build_default_router()
     for provider in ("anthropic", "openai", "google"):
         models = [m for m in router.list_profiles() if m.provider == provider]
-        assert len(models) >= 1, f"لا يوجد نموذج مسجَّل للمزوّد {provider}"
+        assert len(models) >= 1, f"No model is registered for provider {provider}"
 
 
 def test_router_can_select_cheapest_across_all_providers():
