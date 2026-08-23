@@ -15,8 +15,8 @@ from domain.agent_token_repository import AgentTokenNotFound
 from domain.repositories import AgentNotFound
 from infrastructure.security import verify_api_key
 
-# إصدار/إلغاء رمز وكيل عملية إدارية بطبيعتها (منح صلاحية جديدة)، لذا تُحمى
-# بالمفتاح الرئيسي فقط، وليس برمز الوكيل نفسه (وإلا لأمكن لوكيل تجديد صلاحياته ذاتيًا).
+# Issuing or revoking an agent token is inherently administrative because it
+# grants authority; protect it with the primary API key, not an agent token that could self-escalate.
 router = APIRouter(prefix="/agents/{agent_id}/tokens", tags=["agent-tokens"], dependencies=[Depends(verify_api_key)])
 
 

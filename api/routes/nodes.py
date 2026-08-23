@@ -4,19 +4,17 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-مسار للقراءة فقط يعرض: (1) أدوار العقد المتاحة محليًا (خمسة، ثابتة، مُعرَّفة
-في node_roles.py — معلومات مرجعية دائمة حتى لو لم يُنشَر أي منها بعد)،
-و(2) العقد السحابية الفعلية المنشورة إن كانت السحابة مضبوطة (عبر
-/configure_cloud في تلغرام).
+This read-only route exposes: (1) locally available node roles, which are
+stable reference information even before any node is deployed; and (2) actual
+cloud instances when a cloud provider has been configured through Telegram.
 
-قرار تصميم مقصود: **لا يوجد نشر أو حذف عقدة عبر هذا المسار إطلاقًا** —
-النشر يبقى حصريًا عبر بوابة الموافقة المزدوجة في تلغرام
-(/deploy_node ← /approve)، الموثَّقة صراحة في infrastructure/cloud/
-provider_base.py كنموذج أمان: كل إنشاء وتدمير عقدة يمرّ عبر نفس بوابة
-موافقة تلغرام — لا شيء يُنشَر أو يُدمَّر بلا /approve صريح من محادثة
-مصرَّح بها. إضافة زر "انشر" هنا كان سيتجاوز تلك البوابة عمدًا لمجرد
-راحة واجهة المستخدم — تراجع أمني حقيقي، لا تحسين. القراءة فقط تنقل نفس
-المعلومة التي يعرضها /list_nodes في تلغرام، دون فتح أي مسار تنفيذ جديد.
+No node deployment or deletion exists on this route. Deployment remains
+exclusive to the Telegram double-approval gate (`/deploy_node` then
+`/approve`) documented in `infrastructure/cloud/provider_base.py`. Every node
+creation and destruction must cross the same approved-chat gate; adding a
+convenient deployment button here would be a security regression, not an
+improvement. This endpoint mirrors `/list_nodes` information without opening a
+new execution path.
 """
 from __future__ import annotations
 
@@ -62,11 +60,10 @@ def list_nodes() -> dict:
                 }
                 for instance in manager.list_instances()
             ]
-        except Exception as exc:  # noqa: BLE001 - أي فشل مزوّد سحابي (شبكة، مصادقة، توقف
-            # مؤقت للخدمة) يجب ألا يُسقِط الاستجابة كاملة، بما فيها معلومات
-            # أدوار العقد المرجعية المتاحة دائمًا بصرف النظر عن حالة السحابة.
-            # اكتُشِف هذا فعليًا عبر محاكاة حية لـ/configure_cloud متبوعة بطلب
-            # /nodes حقيقي — لا افتراضًا نظريًا.
+        except Exception as exc:  # noqa: BLE001 - a cloud-provider failure must not
+            # discard the entire response, including stable node-role reference
+            # data. This was verified with a configured-cloud simulation and a
+            # real `/nodes` request rather than assumed theoretically.
             cloud_error = f"{type(exc).__name__}: {exc}"
 
     return {
