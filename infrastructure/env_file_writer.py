@@ -4,19 +4,18 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-قارئ/كاتب آمن ومحدود بقائمة سماح لملف .env — يتيح تغيير إعدادات مختارة
-(تلغرام، منفِّذ المهام، مفاتيح النماذج) من لوحة التحكم مباشرة بدل فتح
-الملف وتحريره يدويًا، مع الحفاظ على أمان الملف:
+A secure, allowlist-limited .env reader and writer. It allows selected
+Telegram, task-executor, and model settings to be changed from a control plane
+without opening and manually editing the file, while retaining file safety:
 
-- قائمة سماح صريحة (`ALLOWED_SETTINGS_KEYS`): لا يمكن كتابة أي متغيّر خارج
-  هذه القائمة عبر هذا المسار مهما كان — تحديدًا REUS_API_KEY وREUS_USER_API_KEY
-  (المفتاحان الإداريان) مُستبعَدان عمدًا؛ تغييرهما عبر الويب نفسه، بلا
-  تحقق يدوي، يفتح ثغرة تصعيد صلاحيات واضحة.
-- رفض أي قيمة تحتوي سطرًا جديدًا: بلا هذا الفحص، يمكن لقيمة مثل
-  "x\\nREUS_API_KEY=attacker_key" أن "تُهرِّب" متغيّرًا كاملًا خارج قائمة
-  السماح عبر إدراج سطر جديد في الملف نفسه.
-- يحافظ على كل الأسطر والتعليقات غير المذكورة في التحديث كما هي تمامًا —
-  لا إعادة كتابة كاملة للملف تفقد أي تخصيص يدوي سابق.
+- An explicit `ALLOWED_SETTINGS_KEYS` allowlist prevents writing every other
+  variable through this path. REUS_API_KEY and REUS_USER_API_KEY are excluded
+  deliberately because web-based, unchecked changes would create a clear
+  privilege-escalation risk.
+- Values containing a newline are rejected. Without this check, a value such as
+  `x\nREUS_API_KEY=attacker_key` could inject a new variable outside the allowlist.
+- All unrelated lines and comments are preserved exactly; no full rewrite loses
+  existing manual customization.
 """
 from __future__ import annotations
 
@@ -37,7 +36,7 @@ ALLOWED_SETTINGS_KEYS = frozenset(
     }
 )
 
-# قيم لا تُعاد أبدًا للواجهة بنصها الصريح — تُقنَّع بدلًا من ذلك (موجودة/فارغة فقط)
+# Values never returned to the UI in plaintext; report configured or empty only.
 _SECRET_KEYS = frozenset(
     {"REUS_TELEGRAM_BOT_TOKEN", "REUS_ANTHROPIC_API_KEY", "REUS_OPENAI_API_KEY", "REUS_GOOGLE_API_KEY"}
 )
@@ -52,9 +51,9 @@ class InvalidSettingValue(Exception):
 
 
 def read_env_file(env_path: str = ".env") -> dict[str, str]:
-    """يُعيد فقط المفاتيح المسموح بها من الملف، بقيمها الحقيقية للحقول غير
-    الحساسة، ومقنَّعة (موجودة/فارغة) للحقول الحساسة — لا تُعاد أي أسرار
-    فعلية لواجهة المتصفح إطلاقًا."""
+    """Return only allowlisted keys. Non-sensitive fields retain their values;
+    sensitive fields are reported as configured or empty and no real secret is
+    ever returned to the browser UI."""
     result: dict[str, str] = {}
     try:
         with open(env_path, encoding="utf-8") as f:
@@ -77,15 +76,14 @@ def read_env_file(env_path: str = ".env") -> dict[str, str]:
 
 
 def update_env_file(updates: dict[str, str], env_path: str = ".env") -> None:
-    """يُحدِّث فقط المفاتيح الموجودة في `updates` (يجب أن تكون كلها ضمن
-    ALLOWED_SETTINGS_KEYS)، يستبدل قيمتها إن كانت موجودة في الملف، يُضيفها
-    في النهاية إن لم تكن موجودة، ويحافظ على كل سطر آخر (بما فيه REUS_API_KEY/
-    REUS_USER_API_KEY الحساسان) بلا أي تغيير."""
+    """Update only keys in `updates`, all of which must be allowlisted. Replace
+    existing values, append missing keys, and preserve every other line,
+    including sensitive REUS_API_KEY and REUS_USER_API_KEY entries."""
     for key, value in updates.items():
         if key not in ALLOWED_SETTINGS_KEYS:
-            raise InvalidSettingKey(f"'{key}' ليس ضمن الإعدادات القابلة للتعديل عبر هذا المسار")
+            raise InvalidSettingKey(f"'{key}' is not editable through this path")
         if "\n" in value or "\r" in value:
-            raise InvalidSettingValue(f"القيمة الخاصة بـ '{key}' تحتوي سطرًا جديدًا — مرفوضة")
+            raise InvalidSettingValue(f"Value for '{key}' contains a newline and was rejected")
 
     try:
         with open(env_path, encoding="utf-8") as f:
