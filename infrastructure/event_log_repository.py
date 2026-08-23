@@ -13,11 +13,10 @@ from domain.event_log_repository import EventLogRepository
 
 
 class InMemoryEventLogRepository(EventLogRepository):
-    """
-    يستخدم deque محدود الحجم (maxlen) حتى لا ينمو استهلاك الذاكرة بلا حدود في نظام
-    طويل التشغيل — الأحداث الأقدم تُستبعد تلقائيًا عند تجاوز السعة، وهذا مقصود:
-    هذا سجل مراقبة تشغيلي قصير المدى، وليس أرشيفًا تدقيقيًا دائمًا (ذلك دور PostgreSQL).
-    """
+    """Uses a bounded deque (maxlen) so memory use cannot grow without limit in
+    a long-running system. The oldest events are intentionally discarded once
+    capacity is exceeded: this is short-term operational observability, not a
+    durable audit archive, which is the optional PostgreSQL layer's role."""
 
     def __init__(self, max_entries: int = 5000) -> None:
         self._entries: deque[EventLogEntry] = deque(maxlen=max_entries)
