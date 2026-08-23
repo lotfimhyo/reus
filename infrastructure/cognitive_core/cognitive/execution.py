@@ -6,8 +6,8 @@ Contact: Contact@reulink.app
 Copyright: © Lotfi Mahiddine
 Architecture: Veritas AI
 
-Execution — step 6 of the cognitive cycle ("التنفيذ") from the master
-architecture doc, section 2.5.
+Execution — step 6 of the cognitive cycle (execution) from the master
+architecture document, section 2.5.
 
 Design decision: the Cognitive Engine does NOT itself know how to run a
 capability — actually invoking an agent/tool, sandboxing it, and managing
