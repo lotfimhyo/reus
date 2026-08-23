@@ -4,10 +4,10 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-اختبارات لـ ResourceMonitor (infrastructure/cognitive_core/resource/
-monitor.py) — كانت 66% مغطاة. تُحاكي psutil وshutil.disk_usage بالكامل
-لجعل القراءات حتمية قابلة للاختبار، بدل الاعتماد على حالة الآلة الفعلية
-وقت تشغيل الاختبار (غير حتمية أصلًا، وتُنتج اختبارات هشّة).
+Tests for ResourceMonitor (infrastructure/cognitive_core/resource/monitor.py),
+which had 66% coverage. psutil and shutil.disk_usage are fully mocked to make
+readings deterministic and testable instead of depending on actual machine
+state at test time, which is inherently non-deterministic and brittle.
 """
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ class TestResourceMonitorSnapshot(unittest.TestCase):
         self.assertAlmostEqual(snapshot.memory_total_mb, 2000.0)
         self.assertAlmostEqual(snapshot.disk_free_gb, 50.0)
         self.assertAlmostEqual(snapshot.disk_total_gb, 200.0)
-        self.assertTrue(snapshot.timestamp)  # طابع زمني حقيقي غير فارغ
+        self.assertTrue(snapshot.timestamp)  # A non-empty real timestamp.
 
     @patch("infrastructure.cognitive_core.resource.monitor.shutil.disk_usage")
     @patch("infrastructure.cognitive_core.resource.monitor.psutil.virtual_memory")
