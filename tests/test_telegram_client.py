@@ -4,9 +4,9 @@
 # Contact: Contact@reulink.app
 
 """
-اختبارات TelegramClient. بما أن هذه البيئة لا تصل شبكيًا إلى api.telegram.org،
-تُستخدم httpx.MockTransport لمحاكاة استجابات Telegram Bot API الحقيقية بدقة،
-دون أي نداء شبكي حقيقي.
+Tests for TelegramClient. Because this environment has no network access to
+api.telegram.org, httpx.MockTransport precisely simulates real Telegram Bot API
+responses without making any live network call.
 """
 from __future__ import annotations
 
