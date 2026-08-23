@@ -8,7 +8,8 @@ Architecture: Veritas AI
 
 CapabilityDescriptor — the machine-discoverable manifest every agent/tool
 publishes about itself, per master architecture doc section 2.4:
-"كل مكون داخل النظام يجب أن يعلن قدراته بطريقة قابلة للاكتشاف تلقائيًا"
+every system component must declare its capabilities in an automatically
+discoverable form,
 and the vision doc's requirement to capture cost, resources, time, and risk
 as inputs to plan evaluation (section "Cognitive Engine", step 4).
 
