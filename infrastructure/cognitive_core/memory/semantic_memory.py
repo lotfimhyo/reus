@@ -9,8 +9,8 @@ Architecture: Veritas AI
 Semantic Memory — a minimal knowledge graph of entities and facts
 (subject -> predicate -> object), per master architecture doc section 2.3.
 
-Required capabilities from the vision doc ("منع تكرار المعرفة، ربط المعلومات،
-تحديثها، استرجاعها بكفاءة"):
+Required capabilities from the vision document (preventing duplicate knowledge,
+linking information, updating it, and retrieving it efficiently):
   - add_entity() is idempotent by (name, entity_type) — no duplicate nodes.
   - add_fact() is idempotent by (subject, predicate, object) — no duplicate
     edges; re-adding an existing fact updates its confidence/timestamp
@@ -173,7 +173,7 @@ class SemanticMemory:
         Link two entities with a predicate. Idempotent on
         (subject_id, predicate, object_id): re-asserting an existing fact
         updates its confidence and updated_at rather than duplicating it —
-        this is the "منع تكرار المعرفة" requirement from the vision doc.
+        this enforces the vision document's no-duplicate-knowledge requirement.
         """
         self.get_entity(subject_id)  # raises UnknownEntityError if missing
         self.get_entity(object_id)
