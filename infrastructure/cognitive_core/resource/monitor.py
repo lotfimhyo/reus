@@ -7,8 +7,8 @@ Copyright: © Lotfi Mahiddine
 Architecture: Veritas AI
 
 ResourceMonitor — the CPU/Memory/Storage half of Layer 2's mandate from the
-master architecture doc, section 2.2: "يجب أن يدير النظام موارده تلقائيًا...
-ثم يحدد أفضل مكان لتنفيذ كل مهمة."
+master architecture document, section 2.2: the system should manage its
+resources automatically and select an appropriate place for each task.
 
 Design decision: psutil was chosen for cross-platform CPU/memory sampling
 instead of hand-rolling /proc parsing, because it is already available in
@@ -78,9 +78,8 @@ class ResourceMonitor:
     ) -> bool:
         """
         A simple local-mode admission check: is there enough headroom to
-        start another task? This is the "أفضل مكان لتنفيذ كل مهمة" decision
-        for Local Mode, where the only place is this machine — the check
-        degenerates to "is this machine currently overloaded".
+        start another task? For Local Mode, the placement decision is limited
+        to this machine, so the check reduces to whether it is overloaded.
         """
         snap = self.snapshot()
         return (
