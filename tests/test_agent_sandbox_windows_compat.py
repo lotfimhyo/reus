@@ -4,11 +4,12 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-اختبار مباشر لإصلاح خلل توافق ويندوز حقيقي في AgentSandbox.run(): كان
-PATH يُبنى بصيغة يونكس فقط (`/usr/bin:/bin`) بلا شرط، وهذا يكسر تشغيل
-subprocess تمامًا على ويندوز (وقت تشغيل CPython يحتاج SystemRoot). هذا
-الاختبار يثبت أن المسارين (POSIX وويندوز) يُبنيان بيئة صحيحة لكل نظام، عبر
-محاكاة os.name بدل الاعتماد على نظام التشغيل الفعلي وقت تشغيل الاختبار.
+Direct test for a real Windows compatibility fix in AgentSandbox.run(): PATH
+was previously built unconditionally in Unix format (`/usr/bin:/bin`), which
+breaks subprocess execution on Windows (the CPython runtime needs SystemRoot).
+This test proves that both paths (POSIX and Windows) build the correct
+environment for their platform by mocking os.name rather than relying on the
+operating system that runs the test.
 """
 from __future__ import annotations
 
@@ -37,7 +38,7 @@ class TestSandboxEnvironmentIsPlatformAppropriate(unittest.TestCase):
     def test_windows_env_uses_systemroot_not_unix_path(self):
         env = self._run_and_capture_env()
         self.assertIn("SystemRoot", env)
-        self.assertNotIn("PATH", env)  # لا صيغة يونكس مطلقًا على ويندوز
+        self.assertNotIn("PATH", env)  # Never use Unix format on Windows.
 
     @patch("infrastructure.agent_factory.sandbox.os.name", "posix")
     def test_posix_env_is_unchanged_from_before_the_fix(self):
