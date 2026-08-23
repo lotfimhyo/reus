@@ -4,10 +4,11 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-اختبارات لـ TemplateSynthesizer وLLMSynthesizer (infrastructure/
-agent_factory/synthesizer.py) — كانت 61% مغطاة، وLLMSynthesizer تحديدًا
-غير مغطاة إطلاقًا. يُختبَر التوليد بالقالب بتنفيذ الكود المُولَّد فعليًا
-(لا فحص نصي سطحي فقط)، وLLMSynthesizer عبر محاكاة عميل Anthropic.
+Tests for TemplateSynthesizer and LLMSynthesizer
+(infrastructure/agent_factory/synthesizer.py). Coverage was previously 61%,
+with no coverage for LLMSynthesizer specifically. Template generation is
+tested by executing the generated code, not through shallow text inspection,
+and LLMSynthesizer is tested with a mocked Anthropic client.
 """
 from __future__ import annotations
 
@@ -31,15 +32,16 @@ class TestTemplateSynthesizer(unittest.TestCase):
         source = self.synthesizer.synthesize(spec)
 
         namespace: dict = {}
-        exec(source, namespace)  # الكود المُولَّد نفسه، لا نسخة يدوية منه
+        exec(source, namespace)  # The generated code itself, not a hand-written copy.
         tool = namespace["GeneratedTool"]()
         self.assertEqual(tool.run("hello"), "HELLO")
         self.assertEqual(tool.name, "uppercaser")
         self.assertEqual(tool.capability, "text.upper")
 
     def test_synthesize_correctly_embeds_multiline_template_bodies(self):
-        """قوالب متعددة الأسطر (مثل is_palindrome) يجب أن تُدمَج بمسافات
-        بادئة صحيحة تُنتِج كودًا صالحًا قابلًا للتنفيذ، لا نصًا مشوَّهًا."""
+        """Multiline templates (such as ``is_palindrome``) must be inserted
+        with correct indentation that produces valid, executable code rather
+        than malformed text."""
         spec = AgentSpec(
             name="pal", capability="text.palindrome", description="checks palindrome", template="is_palindrome"
         )
@@ -56,7 +58,7 @@ class TestTemplateSynthesizer(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             self.synthesizer.synthesize(spec)
         self.assertIn("does_not_exist", str(ctx.exception))
-        self.assertIn("uppercase", str(ctx.exception))  # قائمة القوالب المعروفة مُدرَجة
+        self.assertIn("uppercase", str(ctx.exception))  # The known-template list is included.
 
     def test_available_templates_is_sorted_and_non_empty(self):
         templates = TemplateSynthesizer.available_templates()
@@ -83,7 +85,7 @@ class TestLLMSynthesizer(unittest.TestCase):
         synthesizer = LLMSynthesizer(model="claude-sonnet-5")
 
         text_block_1 = MagicMock(type="text", text="return str(input_data)")
-        non_text_block = MagicMock(type="tool_use")  # يجب تجاهله
+        non_text_block = MagicMock(type="tool_use")  # Must be ignored.
         fake_response = MagicMock()
         fake_response.content = [text_block_1, non_text_block]
         synthesizer._client.messages.create.return_value = fake_response
