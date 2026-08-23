@@ -4,10 +4,11 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-اختبارات لمسار /settings الجديد وinfrastructure/env_file_writer.py —
-يتيح تغيير إعدادات مختارة (تلغرام، منفِّذ المهام) من لوحة التحكم بدل
-تحرير .env يدويًا. الأهم أمنيًا: التحقق أن REUS_API_KEY/REUS_USER_API_KEY
-لا يمكن تغييرهما عبر هذا المسار مهما كانت الحمولة المُرسَلة.
+Tests for the new /settings route and infrastructure/env_file_writer.py. It
+allows selected settings (Telegram and task executor) to be changed from the
+dashboard rather than manually editing .env. Most importantly for security,
+REUS_API_KEY and REUS_USER_API_KEY must not be changeable through this route,
+regardless of the submitted payload.
 """
 from __future__ import annotations
 
