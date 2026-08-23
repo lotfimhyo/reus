@@ -6,8 +6,8 @@
 """
 Domain layer: Agent entity.
 
-هذا الملف يمثل جوهر النظام (Core Domain) في Clean Architecture.
-لا يعتمد على أي طبقة خارجية (لا FastAPI، لا Redis، لا قواعد بيانات).
+This file is the core domain in Clean Architecture. It depends on no external
+layer: no FastAPI, Redis, or database.
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from typing import Any
 
 
 class AgentState(str, Enum):
-    """دورة حياة الوكيل. أي انتقال غير مسموح به يُرفض في طبقة التطبيق."""
+    """Agent lifecycle. The application layer rejects every forbidden transition."""
 
     CREATED = "created"
     IDLE = "idle"
@@ -29,31 +29,31 @@ class AgentState(str, Enum):
     TERMINATED = "terminated"
 
 
-# جدول الانتقالات المسموح بها بين الحالات (State Machine حقيقية، ليست تجميلية)
+# Allowed state-transition table. This is a real state machine, not decoration.
 ALLOWED_TRANSITIONS: dict[AgentState, set[AgentState]] = {
     AgentState.CREATED: {AgentState.IDLE, AgentState.ERROR, AgentState.TERMINATED},
     AgentState.IDLE: {AgentState.RUNNING, AgentState.PAUSED, AgentState.TERMINATED, AgentState.ERROR},
     AgentState.RUNNING: {AgentState.IDLE, AgentState.PAUSED, AgentState.ERROR, AgentState.TERMINATED},
     AgentState.PAUSED: {AgentState.RUNNING, AgentState.IDLE, AgentState.TERMINATED, AgentState.ERROR},
     AgentState.ERROR: {AgentState.IDLE, AgentState.TERMINATED},
-    AgentState.TERMINATED: set(),  # حالة نهائية، لا رجوع منها
+    AgentState.TERMINATED: set(),  # Terminal state; no return transition.
 }
 
 
 class InvalidStateTransition(Exception):
     def __init__(self, current: AgentState, target: AgentState):
-        super().__init__(f"لا يمكن الانتقال من الحالة '{current.value}' إلى '{target.value}'")
+        super().__init__(f"Cannot transition from state '{current.value}' to '{target.value}'")
         self.current = current
         self.target = target
 
 
 class PermissionDenied(Exception):
     def __init__(self, permission: str):
-        super().__init__(f"الصلاحية '{permission}' غير مسموح بها ضمن قائمة الصلاحيات المعتمدة")
+        super().__init__(f"Permission '{permission}' is not allowed by the approved permission set")
         self.permission = permission
 
 
-# مبدأ أقل الصلاحيات: لا صلاحية تُقبل إن لم تكن ضمن هذه القائمة المغلقة
+# Least privilege: no permission is accepted unless it belongs to this closed set.
 ALLOWED_PERMISSIONS: frozenset[str] = frozenset({
     "read:memory",
     "write:memory",
@@ -67,7 +67,7 @@ ALLOWED_PERMISSIONS: frozenset[str] = frozenset({
 
 @dataclass
 class OperationRecord:
-    """سطر واحد في سجل عمليات الوكيل (Audit Log)."""
+    """One entry in the agent operation audit log."""
 
     timestamp: datetime
     action: str
@@ -77,7 +77,7 @@ class OperationRecord:
 
 @dataclass
 class PerformanceMetrics:
-    """مؤشرات أداء تراكمية للوكيل."""
+    """Cumulative agent performance metrics."""
 
     requests_count: int = 0
     total_latency_ms: float = 0.0
@@ -94,16 +94,15 @@ class PerformanceMetrics:
 
 @dataclass
 class Agent:
-    """
-    كيان الوكيل: هوية + صلاحيات + ذاكرة (مراجع) + أهداف + حالة + سجل + مؤشرات أداء.
-    """
+    """Agent entity: identity, permissions, memory references, goals, state,
+    operation log, and performance metrics."""
 
     name: str
     permissions: set[str]
     goals: list[str]
     agent_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     state: AgentState = AgentState.CREATED
-    memory_refs: list[str] = field(default_factory=list)  # معرفات مقاطع الذاكرة في مخزن الذاكرة الدلالية
+    memory_refs: list[str] = field(default_factory=list)  # Semantic-memory record identifiers.
     operation_log: list[OperationRecord] = field(default_factory=list)
     metrics: PerformanceMetrics = field(default_factory=PerformanceMetrics)
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
