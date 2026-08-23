@@ -211,7 +211,7 @@ class TestClusterMTLSBootstrap(unittest.TestCase):
 
         reply2 = self.telegram.handle_incoming_message(self.admin_chat_id, f"/approve {approval_id}")
         self.assertEqual(reply2, "✅")
-        self.assertTrue(any("تمت الموافقة" in text for _, text in self.sent_messages))
+        self.assertTrue(any("Approved:" in text for _, text in self.sent_messages))
 
     def test_new_node_join_requires_human_approval_and_is_denied_before_it(self):
         join_client = MTLSJoinClient(

@@ -39,7 +39,7 @@ class TestTelegramLinkErrorMessage(unittest.TestCase):
         service = get_telegram_service()
         reply = service.handle_incoming_message("chat-1", "/link rvos_not-a-real-token")
         self.assertIn("dashboard", reply)
-        self.assertIn("توليد رمز لتلغرام", reply)
+        self.assertIn("generate a Telegram token", reply)
 
 
 if __name__ == "__main__":

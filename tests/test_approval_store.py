@@ -43,7 +43,7 @@ def test_restart_cancels_unrecoverable_approval_and_keeps_audit_trail(tmp_path: 
 
     assert executed == []
     assert second_store.get("deployment-1").status == "cancelled_restart"
-    assert "أُلغي الطلب" in delivered[-1][1]
+    assert "safely cancelled after restart" in delivered[-1][1]
     audit_events = audit_path.read_text(encoding="utf-8")
     assert '"event": "created"' in audit_events
     assert '"event": "cancelled_restart"' in audit_events
