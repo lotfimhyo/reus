@@ -57,8 +57,8 @@ class TestReadBodyHardening(unittest.TestCase):
             handler._read_body()
 
     def test_oversized_content_length_is_rejected_before_reading(self):
-        """الاختبار الحرج: يجب أن يُرفَض الطلب **قبل** أي محاولة قراءة فعلية
-        بحجم ضخم -- لا فقط أن القراءة تفشل لاحقًا بعد استهلاك الذاكرة."""
+        """Critical test: reject the request **before** any real oversized read,
+        rather than letting the read fail only after consuming memory."""
         handler = _make_handler({"Content-Length": str(_MAX_BODY_BYTES + 1)}, b"{}")
 
         with self.assertRaises(_BadRequestBody):
@@ -67,7 +67,7 @@ class TestReadBodyHardening(unittest.TestCase):
     def test_missing_content_length_defaults_to_zero_not_error(self):
         handler = _make_handler({}, b"")
         with self.assertRaises(json.JSONDecodeError):
-            handler._read_body()  # لا محتوى فعليًا لتحليله كـJSON، لكن ليس _BadRequestBody
+            handler._read_body()  # No actual content to parse as JSON, but not _BadRequestBody.
 
 
 if __name__ == "__main__":
