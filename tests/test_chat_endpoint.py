@@ -4,18 +4,16 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-يتطلب هذا الملف `fastapi`/`pydantic` (متطلبات فعلية للمشروع، مُدرَجة في
-requirements.txt) — غير مثبَّتتين في بيئة التنفيذ التي بُني بها هذا المشروع
-في هذه الجلسة تحديدًا (لا شبكة لتثبيت حزم جديدة)، لذا **لم يُشغَّل هذا
-الاختبار فعليًا هنا** خلافًا لكل الاختبارات الأخرى في هذا المشروع. هذا قيد
-بيئة تنفيذ، لا قيد في المشروع نفسه — شغّله بعد `pip install -r
-requirements.txt` في أي بيئة تطوير حقيقية:
+Requires FastAPI and Pydantic, which are declared project dependencies in
+requirements.txt. Run it in an environment where those dependencies are
+installed:
 `python3 -m unittest tests.test_chat_endpoint -v`
 
-يثبت: فصل بيانات الاعتماد الحقيقي بين /chat والمسارات الإدارية (مفتاح
-المستخدمين لا يعمل على /workflows، ومفتاح الإدارة لا يعمل على /chat)، تطبيع
-`ChatResponse` عبر أشكال نتائج مختلفة، وتحويل `TaskExecutionError` إلى 502
-واضح بدل انهيار غامض.
+Verifies credential separation between /chat and administrative routes: a
+user key must not work on /workflows and an administrative key must not work
+on /chat. It also verifies ChatResponse normalization across result shapes and
+that TaskExecutionError maps to a clear 502 response rather than an opaque
+failure.
 """
 from __future__ import annotations
 
@@ -92,7 +90,7 @@ class TestChatEndpoint(unittest.TestCase):
         self.assertEqual(response.status_code, 401)
 
     def test_admin_api_key_does_not_grant_access_to_chat(self):
-        """فصل بيانات اعتماد حقيقي: user_api_key ≠ api_key الإداري."""
+        """Credential separation: user_api_key is distinct from the administrative api_key."""
         from config import get_settings
 
         settings = get_settings()
