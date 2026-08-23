@@ -20,9 +20,9 @@ from domain.memory_repository import MemoryNotFound
 from domain.repositories import AgentNotFound
 from infrastructure.security import require_agent_scope
 
-# لا يوجد تحقق جماعي على مستوى الموجّه عمدًا: كل مسار يفرض الصلاحية الدقيقة
-# التي يحتاجها فعليًا (read:memory أو write:memory)، حتى يُطبَّق نطاق الرمز
-# (Token Scope) بدقة لكل عملية على حدة، لا "وصول كامل لكل شيء تحت هذا المسار".
+# No router-wide authorization is applied intentionally. Each endpoint enforces
+# the exact `read:memory` or `write:memory` scope it needs, so a token does not
+# receive broad access to everything under this route.
 router = APIRouter(prefix="/agents/{agent_id}/memory", tags=["memory"])
 
 
