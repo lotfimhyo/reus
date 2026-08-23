@@ -4,9 +4,10 @@
 # Contact: Contact@reulink.app
 
 """
-Composition Root: المكان الوحيد في المشروع الذي يقرر "أي تطبيق فعلي"
-يُستخدم لكل واجهة مجردة. اختيار محرك التخزين (ذاكرة/PostgreSQL) يتم هنا
-فقط عبر REUS_STORAGE_BACKEND، دون أي تغيير في application أو domain أو api.
+Composition root: the only project location that selects a concrete
+implementation for an abstract interface. Storage selection (memory or
+PostgreSQL) happens here through REUS_STORAGE_BACKEND without changing
+application, domain, or API code.
 """
 from __future__ import annotations
 
@@ -136,9 +137,9 @@ def get_learning_layer():
 
 @lru_cache
 def get_local_executor():
-    """LocalExecutor بلا معالجات مسجَّلة افتراضيًا — تسجيل المعالجات الفعلية
-    (ربط كل capability_id بمنطق تنفيذه) مسؤولية نقطة الدخول (api/main.py أو
-    سكربت تشغيل)، وليست مسؤولية الحاوية؛ راجع مصنع الوكلاء في المرحلة 3."""
+    """LocalExecutor has no handlers registered by default. Binding each
+    capability_id to execution logic belongs to an entry point such as
+    api/main.py or a run script, not to this composition root."""
     from infrastructure.cognitive_core.resource.local_executor import LocalExecutor
 
     return LocalExecutor()
@@ -176,9 +177,9 @@ def get_cognitive_engine():
 
 
 def _build_model_routing_executor():
-    """مُستخرَجة كدالة مستقلة (لا @lru_cache) لأنها تُستدعى من مسارين: وضع
-    'model_router' المستقل (النماذج الثانوية حصرًا)، ووضع 'ollama' (كمنفّذ
-    سقوط تلقائي فقط عند تعذّر Ollama). كلاهما يحتاج نفس البناء دون تكراره."""
+    """Kept as a non-cached helper because two paths require the same setup:
+    standalone model_router mode for secondary models, and ollama mode as the
+    fallback executor only when Ollama is unavailable."""
     from application.model_routing_executor import ModelRoutingExecutor
     from infrastructure.model_client import AnthropicModelClient, GoogleModelClient, KimiModelClient, OpenAIModelClient
     from infrastructure.model_client_registry import ModelClientRegistry
@@ -208,10 +209,9 @@ def get_task_executor() -> TaskExecutor:
     if executor_kind == "model_router":
         return _build_model_routing_executor()
     if executor_kind == "ollama":
-        # الوضع الموصى به عند تفعيل Ollama: النموذج المحلي أساسي دائمًا،
-        # والنماذج الثانوية (Anthropic/OpenAI/Google) سقوط تلقائي حقيقي فقط
-        # عند تعذّر الوصول لخادم Ollama نفسه — انظر application/
-        # ollama_task_executor.py للتوثيق الكامل لهذا القرار.
+        # Recommended Ollama mode: the local model is always primary and
+        # secondary models are a genuine fallback only when the Ollama server
+        # itself is unavailable. See application/ollama_task_executor.py.
         from application.ollama_task_executor import OllamaTaskExecutor
 
         return OllamaTaskExecutor(
@@ -240,10 +240,10 @@ def get_ollama_client():
 
 @lru_cache
 def get_ollama_agent_builder():
-    """AgentBuilder ثانٍ منفصل عن get_agent_builder() (القوالب الثابتة
-    المستخدمة لمهارات العقد الخمس الأصلية) — هذا مُغذّى بـOllamaSynthesizer
-    + IndependentTestReviewer، ويُستخدَم حصرًا عبر CapabilityEvolutionService
-    لاقتراحات مهارات جديدة تحتاج موافقة بشرية، لا لأي مهارة أساسية."""
+    """A second AgentBuilder, separate from get_agent_builder() and its fixed
+    templates for baseline node skills. It uses OllamaSynthesizer and
+    IndependentTestReviewer only through CapabilityEvolutionService for
+    new-capability proposals that require human approval."""
     from infrastructure.agent_factory.builder import AgentBuilder
     from infrastructure.agent_factory.independent_test_reviewer import IndependentTestReviewer
     from infrastructure.agent_factory.ollama_synthesizer import OllamaSynthesizer
@@ -282,7 +282,7 @@ def get_autonomy_governance_ledger():
 
 @lru_cache
 def get_autonomy_supervisor():
-    """المسار المحكوم لتوسعة النواة عند اكتشاف فجوة قدرة في مهمة حقيقية."""
+    """The governed expansion path when a real task exposes a capability gap."""
     from application.autonomy_supervisor import AutonomySupervisor
     from domain.autonomy import AutonomyPolicy
     from infrastructure.autonomy.ollama_designer import OllamaAgentDesigner
@@ -510,8 +510,8 @@ def get_telegram_service() -> TelegramService:
         approval_store=get_telegram_approval_store(),
     )
     if admin_chat_ids:
-        # نفس نموذج Phoenix: أوامر السحابة تُسجَّل فقط إن وُجدت محادثات إدارية
-        # مصرَّح بها أصلًا؛ بدون ذلك، /configure_cloud وأخواتها غير موجودة أصلًا.
+        # Cloud commands are registered only if authorized administrative chats
+        # exist. Without them, /configure_cloud and related commands do not exist.
         from application.cloud_telegram_commands import CloudTelegramCommands
 
         CloudTelegramCommands(
@@ -525,10 +525,9 @@ def get_telegram_service() -> TelegramService:
         ControlPlaneTelegramCommands(service, settings=get_settings(), pairing_store=get_control_plane_pairing_store())
 
         if get_settings().ollama_enabled:
-            # نفس المبدأ: أوامر تطوّر القدرات (/pending_capabilities،
-            # /approve_capability، /reject_capability) لا تُسجَّل إطلاقًا ما
-            # لم يكن Ollama مفعّلًا صراحةً (REUS_OLLAMA_ENABLED=true) — لا
-            # اقتراح مهارات بلا نموذج محلي فعلي خلفه.
+            # The same principle applies to capability-evolution commands:
+            # they are not registered until Ollama is explicitly enabled, so
+            # no capability proposal exists without a real local model behind it.
             from application.capability_evolution_service import CapabilityEvolutionService
 
             CapabilityEvolutionService(
@@ -546,13 +545,10 @@ def get_telegram_service() -> TelegramService:
                     governance=get_autonomy_governance_ledger(),
                     telegram=service,
                 )
-            # ملاحظة مهمة: تسجيل أوامر /model_status، /promote_model،
-            # /demote_model (ModelPromotionService) يحدث عمدًا **من خارج**
-            # هذه الدالة — عبر get_model_promotion_service() في نقطة إقلاع
-            # منفصلة (api/main.py) — لأن ModelPromotionService نفسها تستدعي
-            # get_telegram_service() لتسجيل أوامرها؛ استدعاؤها من هنا (قبل
-            # اكتمال بناء get_telegram_service() وتخزينه في lru_cache) يسبب
-            # استدعاءً دائريًا حقيقيًا لا نظريًا. لا تُعِد هذا الاستدعاء هنا.
+            # ModelPromotionService registers /model_status, /promote_model,
+            # and /demote_model outside this function through a separate startup
+            # point in api/main.py. Calling it here before get_telegram_service()
+            # completes its lru_cache setup creates a real circular invocation.
     return service
 
 
