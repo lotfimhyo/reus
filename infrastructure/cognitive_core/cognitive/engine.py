@@ -9,17 +9,17 @@ Architecture: Veritas AI
 CognitiveEngine — Layer 5, the orchestration layer implementing the
 cognitive cycle from the master architecture doc, section 2.5:
 
-  1. فهم الهدف          -> Goal (already structured on input, this phase)
-  2. تحليل المشكلة       -> analyze(): query Capability Registry (Layer 4)
-  3. توليد عدة خطط        -> generate_plans()
-  4. تقييم كل خطة         -> Plan.score (cost + risk) + learned adjustment
-  5. اختيار أفضل خطة       -> select_best_plan()
-  6. التنفيذ             -> injected Executor (Layer 2's LocalExecutor, typically)
-  7. تقييم النتائج        -> ExecutionResult.success
-  8. مراجعة الذات         -> LearningLayer.learn_from_capability() -> SelfReview
-  9. استخراج معرفة جديدة   -> LearningLayer.learn_from_capability() -> KnowledgeExtractor
- 10. تحديث الذاكرة        -> MemoryLayer.record_episode() (Layer 3)
- 11. تحسين التفكير مستقبلًا -> ReliabilityAdvisor.score_adjustment(), consulted in step 4
+  1. Understand the goal       -> Goal (already structured at input)
+  2. Analyze the problem       -> analyze(): query Capability Registry (Layer 4)
+  3. Generate candidate plans  -> generate_plans()
+  4. Evaluate every plan       -> Plan.score (cost + risk) + learned adjustment
+  5. Select the best plan      -> select_best_plan()
+  6. Execute                   -> injected Executor (typically Layer 2 LocalExecutor)
+  7. Evaluate the result       -> ExecutionResult.success
+  8. Self-review               -> LearningLayer.learn_from_capability() -> SelfReview
+  9. Extract new knowledge     -> LearningLayer.learn_from_capability() -> KnowledgeExtractor
+ 10. Update memory             -> MemoryLayer.record_episode() (Layer 3)
+ 11. Improve future reasoning  -> ReliabilityAdvisor.score_adjustment(), consulted in step 4
      of every *subsequent* run() call
 
 Steps 8/9/11 were deferred in this layer's first increment because they
@@ -152,10 +152,9 @@ class CognitiveEngine:
         )
 
         if self.learning is not None:
-            # Steps 8/9 ("مراجعة الذات" و"استخراج المعرفة الجديدة"): review
-            # this capability's full history (now including the episode
-            # just recorded) and refresh its learned reliability knowledge,
-            # so the *next* run()'s step 11 score_adjustment reflects it.
+            # Steps 8 and 9, self-review and knowledge extraction, review this
+            # capability's full history including the episode just recorded and
+            # refresh learned reliability knowledge for the next run's score adjustment.
             self.learning.learn_from_capability(chosen.steps[0].capability_id)
 
         self._audit_log.append(
