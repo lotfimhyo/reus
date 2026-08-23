@@ -48,7 +48,7 @@ class TestDefaultTaskExecutorChatErrorMessage(unittest.TestCase):
             self.executor.execute(task)
 
         message = str(ctx.exception)
-        self.assertIn("بلا وكيل مُسنَد", message)
+        self.assertIn("has no assigned agent", message)
         self.assertNotIn("REUS_TASK_EXECUTOR", message)
 
 
