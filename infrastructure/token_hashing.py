@@ -4,16 +4,17 @@
 # Contact: Contact@reulink.app
 
 """
-توليد رموز الوكلاء وتجزئتها. النص الصافي يُولَّد عشوائيًا بقوة تشفيرية (secrets)،
-ولا يُخزَّن أبدًا — فقط SHA-256 الخاص به. هذا نفس مبدأ تخزين كلمات المرور: حتى لو
-تسرّبت قاعدة البيانات بالكامل، لا يمكن استخراج الرموز الصافية منها.
+Agent-token generation and hashing. Plaintext tokens are generated with
+cryptographic randomness (`secrets`) and are never stored; only their SHA-256
+hash is retained. As with password storage, a database leak cannot recover the
+plaintext tokens from those hashes.
 """
 from __future__ import annotations
 
 import hashlib
 import secrets
 
-_TOKEN_PREFIX = "rvos_"  # يسمح بتمييز رموز هذا النظام بصريًا (مثل أنماط Stripe/GitHub)
+_TOKEN_PREFIX = "rvos_"  # Makes this system's tokens visually identifiable.
 
 
 def generate_plaintext_token() -> str:
