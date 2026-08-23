@@ -6,12 +6,12 @@
 """
 Domain layer: Workflow (Aggregate Root) + TaskNode.
 
-Workflow يمثل DAG (Directed Acyclic Graph) من المهام. القواعد التالية
-تُفرض هنا في الدومين (لا في API) حتى تُطبَّق دائمًا بغض النظر عن نقطة الدخول:
-- لا يجوز وجود حلقات (Cycles) بين المهام.
-- لا يجوز الإشارة إلى مهمة غير موجودة كتبعية.
-- لا تصبح أي مهمة "جاهزة" إلا بعد اكتمال كل تبعياتها.
-- فشل مهمة بعد استنفاد إعادة المحاولات يُلغي كل المهام التي تعتمد عليها (Cascading Cancellation).
+Workflow is a directed acyclic graph (DAG) of tasks. These rules are enforced
+in the domain layer rather than the API, so they apply regardless of entry point:
+- Tasks cannot form cycles.
+- A dependency cannot reference a missing task.
+- A task becomes ready only after all dependencies complete.
+- A task that permanently fails after retries cancels every dependent task.
 """
 from __future__ import annotations
 
@@ -23,38 +23,38 @@ from typing import Any
 
 
 class TaskState(str, Enum):
-    PENDING = "pending"      # بانتظار اكتمال التبعيات
-    READY = "ready"          # كل التبعيات اكتملت، جاهزة للتنفيذ
+    PENDING = "pending"      # Waiting for dependencies to complete.
+    READY = "ready"          # All dependencies completed; ready to run.
     RUNNING = "running"
     COMPLETED = "completed"
-    FAILED = "failed"        # فشلت نهائيًا بعد استنفاد إعادة المحاولات
-    CANCELLED = "cancelled"  # أُلغيت بسبب فشل تبعية لها
+    FAILED = "failed"        # Permanently failed after retries were exhausted.
+    CANCELLED = "cancelled"  # Cancelled because one dependency failed.
 
 
 class CycleDetected(Exception):
     def __init__(self, cycle_hint: str = ""):
-        super().__init__(f"تم اكتشاف حلقة (Cycle) في شبكة المهام. {cycle_hint}")
+        super().__init__(f"A cycle was detected in the task graph. {cycle_hint}")
 
 
 class InvalidDependency(Exception):
     def __init__(self, task_id: str, missing_dependency: str):
-        super().__init__(f"المهمة '{task_id}' تعتمد على مهمة غير موجودة: '{missing_dependency}'")
+        super().__init__(f"Task '{task_id}' depends on missing task '{missing_dependency}'")
 
 
 class TaskNotFound(Exception):
     def __init__(self, task_id: str):
-        super().__init__(f"لم يتم العثور على مهمة بالمعرّف: {task_id}")
+        super().__init__(f"No task was found with ID: {task_id}")
 
 
 class InvalidTaskTransition(Exception):
     def __init__(self, task_id: str, current: TaskState, target: TaskState):
-        super().__init__(f"المهمة '{task_id}': لا يمكن الانتقال من '{current.value}' إلى '{target.value}'")
+        super().__init__(f"Task '{task_id}' cannot transition from '{current.value}' to '{target.value}'")
 
 
 _ALLOWED_TASK_TRANSITIONS: dict[TaskState, set[TaskState]] = {
     TaskState.PENDING: {TaskState.READY, TaskState.CANCELLED},
     TaskState.READY: {TaskState.RUNNING, TaskState.CANCELLED},
-    TaskState.RUNNING: {TaskState.COMPLETED, TaskState.FAILED, TaskState.PENDING},  # PENDING = إعادة محاولة
+    TaskState.RUNNING: {TaskState.COMPLETED, TaskState.FAILED, TaskState.PENDING},  # PENDING = retry
     TaskState.COMPLETED: set(),
     TaskState.FAILED: set(),
     TaskState.CANCELLED: set(),
@@ -67,7 +67,7 @@ class TaskNode:
     agent_id: str | None = None
     depends_on: frozenset[str] = field(default_factory=frozenset)
     max_retries: int = 0
-    payload: dict = field(default_factory=dict)  # بيانات خاصة بالتنفيذ، مثل: {"prompt": "...", "required_capabilities": [...]}
+    payload: dict = field(default_factory=dict)  # Execution-specific data, e.g. {"prompt": "...", "required_capabilities": [...]}.
     task_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     state: TaskState = TaskState.PENDING
     retry_count: int = 0
@@ -85,17 +85,17 @@ class TaskNode:
 
 @dataclass
 class TaskSpec:
-    """مواصفة مهمة يقدّمها المستخدم عند إنشاء Workflow (قبل أن تصبح TaskNode كاملة)."""
+    """Task specification supplied when a Workflow is created, before it becomes a complete TaskNode."""
 
     name: str
     agent_id: str | None = None
-    depends_on: list[str] = field(default_factory=list)  # أسماء مهام أخرى ضمن نفس الطلب
+    depends_on: list[str] = field(default_factory=list)  # Names of other tasks in the same request.
     max_retries: int = 0
     payload: dict = field(default_factory=dict)
 
 
 class Workflow:
-    """Aggregate Root: يملك كل مهامه ويفرض قواعد الاتساق عليها بالكامل."""
+    """Aggregate root that owns all tasks and enforces their consistency rules."""
 
     def __init__(self, name: str, tasks: dict[str, TaskNode], workflow_id: str | None = None) -> None:
         self.workflow_id = workflow_id or str(uuid.uuid4())
@@ -106,10 +106,8 @@ class Workflow:
 
     @classmethod
     def create(cls, name: str, specs: list[TaskSpec]) -> "Workflow":
-        """
-        Factory: يبني المهام من المواصفات، ويحوّل أسماء التبعيات إلى task_id فعلية،
-        ويتحقق من سلامة الـ DAG قبل إرجاع الكائن.
-        """
+        """Factory that builds tasks from specifications, resolves dependency
+        names to real task IDs, and validates the DAG before returning it."""
         name_to_node: dict[str, TaskNode] = {}
         for spec in specs:
             node = TaskNode(name=spec.name, agent_id=spec.agent_id, max_retries=spec.max_retries, payload=spec.payload)
@@ -130,7 +128,7 @@ class Workflow:
         return cls(name=name, tasks=tasks)
 
     def _validate_no_cycles(self) -> None:
-        """فرز طوبولوجي بخوارزمية Kahn؛ إن تعذّر ترتيب كل العقد فهناك حلقة."""
+        """Run Kahn topological sorting; if not all nodes can be ordered, a cycle exists."""
         in_degree = {tid: 0 for tid in self.tasks}
         for node in self.tasks.values():
             for dep in node.depends_on:
@@ -153,7 +151,7 @@ class Workflow:
                     queue.append(nxt)
 
         if visited != len(self.tasks):
-            raise CycleDetected(f"{len(self.tasks) - visited} مهمة/مهام ضمن حلقة")
+            raise CycleDetected(f"{len(self.tasks) - visited} task(s) are part of a cycle")
 
     def get_task(self, task_id: str) -> TaskNode:
         task = self.tasks.get(task_id)
@@ -190,11 +188,9 @@ class Workflow:
         return node
 
     def fail_task(self, task_id: str, error: str) -> tuple[TaskNode, list[TaskNode]]:
-        """
-        عند الفشل: إن بقيت محاولات، تُعاد المهمة إلى PENDING (إصلاح ذاتي عبر إعادة المحاولة).
-        وإلا تُوسم بالفشل النهائي، وتُلغى تلقائيًا كل المهام التي تعتمد عليها (مباشرة وغير مباشرة).
-        يُعيد (المهمة الفاشلة، قائمة المهام المُلغاة تبعًا لها).
-        """
+        """On failure, return the task to PENDING if retries remain. Otherwise,
+        mark it permanently failed and cancel direct and indirect dependents.
+        Returns the failed task and its cancelled dependent tasks."""
         node = self.get_task(task_id)
         node.error = error
         if node.retry_count < node.max_retries:
