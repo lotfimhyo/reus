@@ -136,7 +136,7 @@ class TestModelPromotion(unittest.TestCase):
         self.dataset.harvest(self.memory)
         report = self.promotion.evaluate_readiness()
         self.assertFalse(report.ready)
-        self.assertIn("أقل من الحد الأدنى", report.reason_ar())
+        self.assertIn("below the minimum", report.reason())
 
     def test_full_maturity_to_promotion_flow_and_executor_uses_new_model_immediately(self):
         for text in ["a", "b", "c"]:
@@ -145,7 +145,7 @@ class TestModelPromotion(unittest.TestCase):
         self.model_builder.build()
 
         report = self.promotion.evaluate_readiness()
-        self.assertTrue(report.ready, report.reason_ar())
+        self.assertTrue(report.ready, report.reason())
 
         from domain.workflow import TaskNode
 
@@ -153,7 +153,7 @@ class TestModelPromotion(unittest.TestCase):
         self.assertEqual(result_before["model_used"], "llama3.1")
 
         self.promotion.notify_if_newly_ready()
-        self.assertTrue(any("النموذج المتطوّر بلغ معايير النضج" in text for _, text in self.sent_messages))
+        self.assertTrue(any("meets the configured maturity criteria" in text for _, text in self.sent_messages))
 
         reply1 = self.telegram.handle_incoming_message(self.admin_chat_id, "/promote_model")
         self.assertEqual(reply1, "✅")
@@ -179,7 +179,7 @@ class TestModelPromotion(unittest.TestCase):
     def test_promote_command_refuses_when_not_ready(self):
         reply = self.telegram.handle_incoming_message(self.admin_chat_id, "/promote_model")
         self.assertEqual(reply, "✅")
-        self.assertTrue(any("غير جاهز للترقية بعد" in text for _, text in self.sent_messages))
+        self.assertTrue(any("not ready for promotion" in text for _, text in self.sent_messages))
         self.assertFalse(self.active_model_store.is_promoted())
 
 
