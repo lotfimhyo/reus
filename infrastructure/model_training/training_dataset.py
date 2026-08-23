@@ -4,21 +4,20 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-TrainingDatasetStore — يحصد أزواج تدريب حقيقية (لا مُصطنَعة) من التنفيذ
-الفعلي للنظام: كل حلقة (Episode) ناجحة مُسجَّلة فعلًا في MemoryLayer.episodic
-(عبر CognitiveEngine.run() الحقيقي، انظر التعديل في cognitive/engine.py
-الذي أضاف `input` لحمولة الحلقة تحديدًا من أجل هذا) تصبح سطرًا واحدًا في
-ملف JSONL تراكمي محلي — هذا هو "تراكم المعارف عبر الوقت" المطلوب حرفيًا:
-بيانات حقيقية من استخدام حقيقي، لا بيانات وهمية أو مولَّدة صناعيًا.
+TrainingDatasetStore harvests real, non-synthetic training pairs from actual
+system execution. Each successful episode recorded in MemoryLayer.episodic by
+CognitiveEngine.run becomes one line in a local, accumulating JSONL file. This
+is knowledge accumulation over time from genuine use, not mocked or generated
+training data.
 
-هذا الملف مسؤول فقط عن **الحصاد والتخزين**. البناء الفعلي لنموذج من هذه
-البيانات (عبر Modelfile مُوجَّه لـOllama) في `local_model_builder.py` — يبقى
-كل واحد قابلًا للاختبار منفصلًا.
+This module is responsible only for harvesting and storage. Actual model
+building from this data through an Ollama-oriented Modelfile belongs to
+local_model_builder.py, so both remain independently testable.
 
-قرار تصميم متعمَّد: الحصاد idempotent بالكامل (يعتمد على `episode_id` كمفتاح
-تفرّد، لا على "آخر مرة شغّلنا فيها") — يمكن استدعاء `harvest()` بأي تكرار
-(كل ساعة، كل يوم، بعد كل حلقة) دون خطر تكرار سطر واحد مرتين في الملف
-الناتج، ودون فقدان أي حلقة إن تأخّر الحصاد.
+Harvesting is intentionally idempotent: it uses episode_id as the uniqueness
+key rather than a last-run timestamp. harvest() may run hourly, daily, or after
+each episode without duplicating an output line or losing an episode after a
+delayed harvest.
 """
 from __future__ import annotations
 
@@ -69,13 +68,13 @@ class TrainingDatasetStore:
                     try:
                         self._known_episode_ids.add(json.loads(line)["episode_id"])
                     except (json.JSONDecodeError, KeyError):
-                        continue  # سطر تالف لا يوقف تحميل بقية الملف
+                        continue  # A corrupt line does not prevent loading the rest of the file.
 
     def harvest(self, memory: MemoryLayer, limit: int = 500) -> int:
-        """يفحص أحدث `limit` حلقة من فعل `goal.completed` فقط (الفاشلة
-        متروكة عمدًا — تدريب نموذج على مخرجات فاشلة كأمثلة "صحيحة" يُفسد
-        الهدف)، ويُضيف كل حلقة جديدة (لم تُحصَد من قبل) كسطر واحد. يُعيد
-        عدد الأسطر الجديدة المُضافة فعليًا."""
+        """Inspect the newest `limit` goal.completed episodes only. Failed
+        episodes are deliberately excluded because treating their output as a
+        correct training example would corrupt the goal. Append each previously
+        unharvested episode as one line and return the number actually added."""
         with self._lock:
             episodes = memory.episodes_by_action("goal.completed", limit=limit)
             new_examples: list[TrainingExample] = []
