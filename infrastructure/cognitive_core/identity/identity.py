@@ -8,7 +8,7 @@ Architecture: Veritas AI
 
 ComponentIdentity: the cryptographic identity every component in Veritas AI
 (a layer, an agent, a tool) must hold, per the master architecture doc
-section 5: "هوية تشفيرية لكل مكون".
+section 5: every component must have a cryptographic identity.
 """
 
 from __future__ import annotations
