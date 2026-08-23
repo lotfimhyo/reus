@@ -6,15 +6,15 @@ Contact: Contact@reulink.app
 Copyright: © Lotfi Mahiddine
 Architecture: Veritas AI
 
-KnowledgeExtractor — step 9 of the cognitive cycle ("استخراج المعرفة
-الجديدة"). Turns a SelfReview ReviewReport into a durable Semantic Memory
+KnowledgeExtractor — step 9 of the cognitive cycle (extracting new
+knowledge). Turns a SelfReview ReviewReport into a durable Semantic Memory
 fact, so a capability's *observed* reliability becomes queryable knowledge
 alongside whatever it merely *declared* in its CapabilityDescriptor.
 
 Design decision: reliability is stored as a discrete label entity
 ("reliable" / "moderate" / "unreliable" / "unproven") linked via a
 "has_reliability" fact, rather than as a raw float. Semantic Memory's model
-is entities-and-relations (per master doc section 2.3, "الذاكرة الدلالية"),
+is entities-and-relations (per master document section 2.3, semantic memory),
 not a metrics store — a label is a first-class concept other components can
 later reason about or query by name ("find all unreliable capabilities"),
 which a bare number is not. The exact success_rate is not lost: it is kept
