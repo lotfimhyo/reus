@@ -4,9 +4,10 @@
 # Contact: Contact@reulink.app
 
 """
-تطبيق FAISS لمستودع الذاكرة الدلالية.
-يستخدم IndexFlatIP (Inner Product) على متجهات مطبَّعة L2 => يعادل تشابه جيب التمام.
-قابل للاستبدال لاحقًا بمخزن متجهي موزّع (Milvus, pgvector) عبر نفس واجهة MemoryRepository.
+FAISS implementation of the semantic-memory repository.
+It uses IndexFlatIP on L2-normalized vectors, which is equivalent to cosine
+similarity. A distributed vector store such as Milvus or pgvector can later
+replace it through the same MemoryRepository interface.
 """
 from __future__ import annotations
 
@@ -24,8 +25,8 @@ class FaissMemoryRepository(MemoryRepository):
         self._dimension = dimension
         self._index = faiss.IndexFlatIP(dimension)
         self._records: dict[str, MemoryRecord] = {}
-        self._id_by_row: dict[int, str] = {}  # ترتيب الصف في الفهرس -> memory_id
-        self._deleted: set[str] = set()  # FAISS لا يدعم الحذف المباشر من IndexFlatIP؛ نتجاهل المحذوف عند البحث
+        self._id_by_row: dict[int, str] = {}  # Index row order -> memory_id.
+        self._deleted: set[str] = set()  # IndexFlatIP has no direct deletion; exclude soft-deleted entries on reads.
         self._lock = threading.RLock()
 
     def add(self, record: MemoryRecord, embedding: list[float]) -> None:
@@ -47,7 +48,7 @@ class FaissMemoryRepository(MemoryRepository):
         with self._lock:
             if memory_id not in self._records or memory_id in self._deleted:
                 raise MemoryNotFound(memory_id)
-            self._deleted.add(memory_id)  # حذف منطقي (Soft Delete)؛ يُستبعد من نتائج البحث والقراءة
+            self._deleted.add(memory_id)  # Soft delete; exclude from search results and reads.
 
     def list_by_agent(self, agent_id: str) -> list[MemoryRecord]:
         with self._lock:
@@ -60,7 +61,7 @@ class FaissMemoryRepository(MemoryRepository):
         with self._lock:
             if self._index.ntotal == 0:
                 return []
-            # نوسّع k لتعويض العناصر المحذوفة/المفلترة بحسب الوكيل
+            # Expand k to compensate for deleted or agent-filtered entries.
             fetch_k = min(self._index.ntotal, max(top_k * 5, top_k + len(self._deleted) + 10))
             query = np.array([query_embedding], dtype=np.float32)
             scores, rows = self._index.search(query, fetch_k)
