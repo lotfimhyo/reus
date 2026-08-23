@@ -129,12 +129,11 @@ class AgentSandbox:
             with open(runner_path, "w", encoding="utf-8") as f:
                 f.write(_RUNNER_SCRIPT)
 
-            # قصدًا أدنى بيئة ممكنة (لا أسرار موروثة)، لكن يجب أن تبقى كافية
-            # فعليًا لتشغيل مفسّر بايثون نفسه على كل نظام تشغيل — اكتُشِف
-            # بالتحقق الفعلي (لا افتراضًا) أن PATH بصيغة يونكس فقط
-            # (`/usr/bin:/bin`) يكسر تشغيل subprocess تمامًا على ويندوز: وقت
-            # تشغيل CPython على ويندوز يحتاج SystemRoot فعليًا (تحميل DLLs
-            # مثل ws2_32.dll)، وصيغة PATH يونكس لا معنى لها هناك أصلًا.
+            # Deliberately use the smallest practical environment, with no
+            # inherited secrets. It must still start Python on every supported
+            # operating system: a Unix-only PATH (`/usr/bin:/bin`) breaks
+            # subprocess startup on Windows, where CPython needs a real
+            # SystemRoot to load DLLs such as ws2_32.dll.
             if os.name == "nt":
                 env = {"SystemRoot": os.environ.get("SystemRoot", r"C:\Windows")}
                 if "PATHEXT" in os.environ:
