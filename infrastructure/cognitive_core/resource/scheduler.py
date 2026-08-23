@@ -8,7 +8,7 @@ Architecture: Veritas AI
 
 TaskScheduler — the task-scheduling half of Layer 2's mandate from the
 master architecture doc, section 2.2, and the vision doc's "Cognitive
-Engine" step 5 ("التنفيذ") once a plan has been chosen.
+Engine" step 5 (execution) once a plan has been chosen.
 
 Design decision: a bounded ThreadPoolExecutor of size `max_concurrent_tasks`
 is used to cap how many SandboxedExecutor processes may run at once. Each
