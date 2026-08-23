@@ -4,13 +4,13 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-يثبت أن حصاد بيانات التدريب حقيقي من تشغيل حقيقي (لا بيانات مصطنعة): يبني
-عقدة نصوص حقيقية عبر `AgentCapabilityBinder`، يُشغّل `CognitiveEngine.run()`
-الحقيقي عدة أهداف فعلية عبرها، يحصد الحلقات الناجحة فعليًا في
-`TrainingDatasetStore`، ثم يبني Modelfile حقيقي المحتوى ويتحقق من استدعاء
-`ollama create` بالمعاملات الصحيحة (subprocess نفسه محقون/وهمي فقط — لا
-`ollama` مثبَّت في بيئة التنفيذ هنا، وهذا موثَّق بصدق في تعليقات
-local_model_builder.py، لا شيء آخر في هذا المسار محاكى).
+Verifies that training-data harvesting comes from local execution rather than
+synthetic fixtures: it builds a text node through ``AgentCapabilityBinder``,
+runs multiple goals through ``CognitiveEngine.run()``, harvests successful
+episodes into ``TrainingDatasetStore``, and builds Modelfile content. The
+``ollama create`` subprocess is injected because Ollama is not installed in
+this environment, so the test verifies command construction only. It does not
+run Ollama or claim weight fine-tuning.
 
 Run: `python3 -m unittest tests.test_model_training -v`
 """
@@ -50,7 +50,7 @@ class TestModelTraining(unittest.TestCase):
         self.learning = LearningLayer(self.memory, self.audit_log)
         self.engine = CognitiveEngine(self.memory, self.capabilities, self.audit_log, learning=self.learning)
 
-        # نبني قدرة نصية حقيقية واحدة من العقد الخمس ونشغّلها فعليًا عدة مرات.
+        # Build one real text capability from the five node roles and execute it repeatedly.
         text_role = NODE_ROLES["text-node"]
         uppercase_spec = next(s for s in text_role.specs if s.capability == "text.uppercase")
         self.binder.build_and_bind(uppercase_spec)
@@ -73,7 +73,7 @@ class TestModelTraining(unittest.TestCase):
         self.assertEqual(added, 2)
         self.assertEqual(self.dataset.count(), 2)
 
-        # حصاد ثانٍ فورًا لا يكرر شيئًا (idempotent) — لا حلقات جديدة.
+        # An immediate second harvest is idempotent; no new episodes exist.
         added_again = self.dataset.harvest(self.memory)
         self.assertEqual(added_again, 0)
         self.assertEqual(self.dataset.count(), 2)
@@ -128,7 +128,7 @@ class TestModelTraining(unittest.TestCase):
 
     def test_local_model_builder_refuses_to_build_with_zero_examples(self):
         model_builder = LocalModelBuilder(
-            dataset=self.dataset,  # فارغ عمدًا — لا حصاد استُدعي
+            dataset=self.dataset,  # Intentionally empty; no harvest was called.
             learning=None,
             command_runner=lambda args: (_ for _ in ()).throw(AssertionError("must not call ollama with 0 examples")),
             workdir=str(Path(self._tmp.name) / "model_training_empty"),
