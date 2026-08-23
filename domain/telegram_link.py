@@ -5,9 +5,9 @@
 
 """
 Domain layer: TelegramLink.
-يربط محادثة تلغرام واحدة (chat_id) بوكيل واحد فقط، بعد مصادقة ناجحة عبر رمز
-ذلك الوكيل (AgentTokenService.authenticate) — نفس مبدأ Self-Service من الحلقة
-التاسعة، عبر قناة مختلفة فقط. لا يوجد نص صافٍ أو حساس يُخزَّن هنا.
+It links exactly one Telegram chat (chat_id) to one agent after successful
+authentication through that agent's token (AgentTokenService.authenticate).
+No plaintext or sensitive content is stored here.
 """
 from __future__ import annotations
 
