@@ -4,12 +4,14 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-اختبارات لـ CapabilityRegistry (infrastructure/cognitive_core/capability/
-registry.py) — كانت 61% مغطاة. يغطي هذا الملف الخاصية الأهم في تصميمها
-الموثَّق: إعادة تسجيل نفس (component_id, name) لا يستبدل الوصف السابق،
-بل ينشئ نسخة جديدة مع إبقاء القديمة قابلة للاسترجاع — بحيث تبقى خطة
-قُيِّمت مقابل النسخة v1 صالحة حتى بعد نشر v2. أيضًا: unregister يُخفي من
-الاكتشاف دون حذف السجل التاريخي، والاستمرارية الفعلية عبر القرص.
+Tests for CapabilityRegistry (infrastructure/cognitive_core/capability/
+registry.py), which previously had 61% coverage. This file covers its most
+important documented property: re-registering the same ``(component_id, name)``
+does not replace the previous descriptor. Instead, it creates a new version
+while retaining the old one for retrieval, so a plan evaluated against v1
+remains valid after v2 is published. It also covers unregister hiding a
+capability from discovery without deleting historical records, plus on-disk
+persistence.
 """
 from __future__ import annotations
 
@@ -51,17 +53,17 @@ class TestCapabilityRegistration(unittest.TestCase):
 
     def test_reregistering_same_component_and_name_creates_a_new_version(self):
         v1 = _register(self.registry)
-        v2 = _register(self.registry)  # نفس component_id/name مرة أخرى
+        v2 = _register(self.registry)  # Same component_id/name again.
 
         self.assertEqual(v1.version, 1)
         self.assertEqual(v2.version, 2)
         self.assertNotEqual(v1.capability_id, v2.capability_id)
 
     def test_old_version_remains_retrievable_by_id_after_a_new_version_is_published(self):
-        """الخاصية الجوهرية الموثَّقة: نسخة قديمة تبقى قابلة للاسترجاع، لا
-        تُستبدَل ولا تُحذَف — خطة قُيِّمت مقابلها تبقى صالحة."""
+        """Core documented property: an old version remains retrievable and
+        is neither replaced nor deleted, so a plan evaluated against it stays valid."""
         v1 = _register(self.registry)
-        _register(self.registry)  # ينشر v2
+        _register(self.registry)  # Publish v2.
 
         still_there = self.registry.get(v1.capability_id)
         self.assertEqual(still_there.version, 1)
@@ -113,12 +115,12 @@ class TestCapabilityDiscovery(unittest.TestCase):
 
         self.assertEqual(self.registry.list_capabilities(), [])
         self.assertEqual(self.registry.find_by_name("x"), [])
-        # لكن السجل التاريخي يبقى — للتدقيق، لا يُحذَف فعليًا
+        # Historical records remain for audit; they are not deleted.
         still_retrievable = self.registry.get(descriptor.capability_id)
         self.assertEqual(still_retrievable.capability_id, descriptor.capability_id)
 
     def test_unregister_of_unknown_pair_does_not_raise(self):
-        self.registry.unregister("ghost", "ghost")  # يجب ألا يرمي شيئًا
+        self.registry.unregister("ghost", "ghost")  # Must not raise.
 
 
 class TestCapabilityRegistryPersistence(unittest.TestCase):
@@ -130,7 +132,7 @@ class TestCapabilityRegistryPersistence(unittest.TestCase):
     def test_a_fresh_registry_instance_restores_all_versions_and_latest_pointers(self):
         original = CapabilityRegistry(persist_path=self.persist_path)
         _register(original, component_id="comp-a", name="x")
-        v2 = _register(original, component_id="comp-a", name="x")  # نسخة ثانية
+        v2 = _register(original, component_id="comp-a", name="x")  # Second version.
 
         restarted = CapabilityRegistry(persist_path=self.persist_path)
 
