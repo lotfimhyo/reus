@@ -92,10 +92,12 @@ def test_multiple_self_built_capabilities_coexist(binder, task_executor):
 
 
 def test_missing_input_key_fails_clearly_not_silently_as_none(binder, local_executor):
-    """اكتُشِف فعليًا عبر تشغيل عقدة حية: استدعاء قدرة بلا مفتاح "input"
-    كان يمرّر None لأداة القالب بصمت — لقدرة نصية مثل uppercase هذا ينتج
-    "NONE" (str(None).upper()) كنتيجة **ناجحة** ظاهريًا، لا خطأ واضحًا.
-    يثبت هذا الاختبار أن الفشل الآن صريح وموحَّد عبر كل القدرات."""
+    """Live-node testing exposed this behavior: invoking a capability without
+    an ``input`` key silently passed ``None`` to the template tool. For a text
+    capability such as ``uppercase``, that produced ``"NONE"``
+    (``str(None).upper()``) as an apparently successful result rather than a
+    clear error. This test proves the failure is now explicit and consistent
+    across all capabilities."""
     descriptor = binder.build_and_bind(
         AgentSpec(
             name="uppercaser", capability="text.uppercase", description="test", template="uppercase",
