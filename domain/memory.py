@@ -5,7 +5,8 @@
 
 """
 Domain layer: MemoryRecord entity.
-يمثل "مقطع ذاكرة" واحد يمكن للوكيل تخزينه واسترجاعه لاحقًا عبر البحث الدلالي.
+Represents one memory record that an agent can store and later retrieve through
+semantic search.
 """
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ from datetime import datetime, timezone
 
 class EmptyContent(Exception):
     def __init__(self):
-        super().__init__("لا يمكن تخزين مقطع ذاكرة بمحتوى فارغ")
+        super().__init__("A memory record cannot have empty content")
 
 
 @dataclass
