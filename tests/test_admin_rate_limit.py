@@ -4,13 +4,14 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-يثبت الإصلاح الأمني الفعلي: المفتاح الإداري (REUS_API_KEY) — أقوى صلاحية
-في النظام — كان بلا أي تحديد معدل رغم كونه على نفس السطح الشبكي العام
-الذي يخدم /chat، بينما /chat محمي منذ الجلسة السابقة فقط. هذا يثبت أن
-verify_api_key وrequire_agent_scope (المُطبَّقان مركزيًا في
-infrastructure/security.py) يحدّان الآن من محاولات تخمين المفتاح الفاشلة
-نفسها أيضًا، لا فقط الاستخدام بعد نجاح المصادقة — ويثبت أن هذا الحد مستقل
-تمامًا عن حد /chat (مطاردة أحدهما لا تستهلك حصة الآخر).
+Proves the actual security fix: the administrative key (REUS_API_KEY)—the
+system's strongest permission—previously had no rate limit even though it
+shares the public network surface that serves /chat. Although /chat was
+protected in the previous session, this test proves that verify_api_key and
+require_agent_scope (applied centrally in infrastructure/security.py) now also
+limit failed key-guessing attempts, not merely use after successful
+authentication. It also proves that this limit is fully independent from the
+/chat limit (exhausting one does not consume the other's quota).
 """
 from __future__ import annotations
 
@@ -50,8 +51,8 @@ class TestAdminRateLimit(unittest.TestCase):
         container.get_admin_rate_limiter.cache_clear()
 
     def test_admin_key_guessing_attempts_are_rate_limited(self):
-        """الاختبار الأهم: محاولات تخمين مفتاح خاطئ (401) تُستهلَك من الحد
-        نفسه — لا تُتاح بلا حدود لمجرد أنها فاشلة."""
+        """Critical test: wrong-key guessing attempts (401) consume the same
+        limit rather than becoming unbounded merely because they fail."""
         for _ in range(3):
             response = self.client.get("/agents/does-not-exist", headers={"x-api-key": "wrong-key"})
             self.assertEqual(response.status_code, 401)
@@ -66,8 +67,8 @@ class TestAdminRateLimit(unittest.TestCase):
             self.assertNotEqual(response.status_code, 429)
 
     def test_admin_rate_limit_is_independent_from_chat_rate_limit(self):
-        """استهلاك حد /chat لا يجب أن يؤثر إطلاقًا على حد المسارات الإدارية،
-        والعكس — دلائل حقيقية أن هذا محدِّد معدل منفصل، لا نفس الكائن بالخطأ."""
+        """Exhausting the /chat limit must not affect administrative routes,
+        and vice versa—evidence of distinct rate limiters rather than the same object by mistake."""
         os.environ["REUS_USER_API_KEY"] = "user-key"
         import config
 
@@ -75,7 +76,7 @@ class TestAdminRateLimit(unittest.TestCase):
         try:
             for _ in range(3):
                 self.client.get("/agents/does-not-exist", headers={"x-api-key": "wrong-key"})
-            # حد الإدارة الآن مستهلَك بالكامل (3/3) — لكن /chat يجب أن يبقى يعمل
+            # The administrative limit is now fully exhausted (3/3), but /chat must remain available.
             response = self.client.post(
                 "/chat", json={"prompt": "hi"}, headers={"x-api-key": "user-key"}
             )
