@@ -144,7 +144,8 @@ def test_task_failure_delivers_error_to_correct_chat(
 
 
 def test_unrelated_task_events_do_not_trigger_delivery(telegram: TelegramService, orchestrator):
-    """يتأكد أن أحداث المهام غير الصادرة عن تلغرام (بلا chat_id مُسجَّل) لا تُسبّب أي محاولة إرسال."""
+    """Task events not originating from Telegram, with no recorded chat_id,
+    must not trigger any delivery attempt."""
     delivered = []
     telegram.set_delivery_callback(lambda chat_id, text: delivered.append((chat_id, text)))
 
