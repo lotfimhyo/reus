@@ -4,12 +4,12 @@
 # Contact: Contact@reulink.app
 
 """
-AWSSecretsManagerProvider: تطبيق حقيقي وكامل عبر boto3 لـ AWS Secrets Manager.
-يقرأ سرًّا واحدًا (secret_id) يحوي كل الأسرار كحقول JSON.
+AWSSecretsManagerProvider uses boto3 with AWS Secrets Manager. It reads a
+single secret_id whose JSON fields contain the configured secrets.
 
-قرار هندسي موثّق بصدق: كود إنتاجي كامل وصحيح، لكن بيئة تطوير هذا المشروع لا
-تصل شبكيًا لخدمات AWS (نفس القيد الموثّق مع كل التكاملات الخارجية سابقًا).
-اختُبر عبر حقن عميل boto3 وهمي.
+The provider is verified through an injected boto3 test double. This
+development environment does not establish live network access to AWS services,
+so the implementation does not claim live AWS validation here.
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ class AWSSecretsManagerProvider(SecretsProvider):
         self._region_name = region_name
         self._secret_id = secret_id
         self._injected_client = client
-        self._client: Any = None  # بناء كسول (Lazy)
+        self._client: Any = None  # Lazy construction keeps this dependency optional.
         self._cache: dict[str, str] | None = None
 
     def _get_client(self) -> Any:
