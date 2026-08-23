@@ -4,26 +4,23 @@
 # Contact: Contact@reulink.app
 
 """
-SecureRemoteExecutor: نفس عقد RemoteExecutor الأصلي ((step, payload) ->
-HandlerResult عبر إرسال للعقدة المالكة للقدرة)، لكن بفارق أمني جوهري واحد
-مقصود:
+SecureRemoteExecutor has the same RemoteExecutor contract—send a step and
+payload to the node owning a capability—but with one deliberate security
+difference.
 
-RemoteExecutor الأصلي (infrastructure/cognitive_core/cluster/remote_executor.py)
-يرسل عبر `requests.post` عاديًا — بلا مصادقة، بلا تشفير نقل، لأي `api_base_url`
-مسجَّل في PeerDirectory. هذا يعني أن أي طرف يتحكم بذلك العنوان (انتحال DNS/شبكة)
-يستطيع قراءة كل payload يُرسَل، أو إرجاع نتائج مزيَّفة تُعامَل كموثوقة. هذا لا
-يتوافق مع بقية النظام الذي يبني بنية mTLS كاملة (TrustStore + SecureNodeClient)
-لهذا الغرض بالضبط — لكن RemoteExecutor لم يكن يستخدمها إطلاقًا.
+The original RemoteExecutor sends a plain requests.post to any api_base_url in
+PeerDirectory. An actor controlling that address could read a payload or return
+forged results. This does not match the rest of the system's mTLS transport
+model through TrustStore and SecureNodeClient.
 
-القرار هنا: PeerDirectory يبقى كما هو تمامًا (مسؤوليته الوحيدة والصحيحة: تتبّع
-"أي عقدة تملك أي capability_id" — هذا لا علاقة له بالنقل). لكن "أين ولمن نرسل
-فعليًا" يُستمَد الآن حصرًا من TrustStore (نفس مصدر ثقة النقل الذي تستخدمه Raft
-وDiscoveryService) — عقدة غير موجودة في TrustStore تُرفض صراحة، لا تُرسَل لها
-أي بيانات عبر قناة غير موثوقة مهما كانت مسجَّلة في PeerDirectory.
+PeerDirectory continues to answer only which node owns a capability_id. The
+actual network destination is derived exclusively from TrustStore, the same
+transport-trust source used by Raft and discovery. A node absent from TrustStore
+is explicitly rejected; no payload is sent through an untrusted channel even if
+the node appears in PeerDirectory.
 
-RemoteExecutor الأصلي لم يُحذف — يبقى مفيدًا فقط لاختبار محلي/تطوير حيث
-لا شبكة مادية بين "عقد" فعلية. لا يُستخدم أبدًا في نشر حقيقي متعدد العقد؛
-راجع الفرق موثّقًا في README.
+The original RemoteExecutor remains useful only for local development and tests
+without physical node networking. It is not used for a real multi-node deployment.
 """
 from __future__ import annotations
 
@@ -54,18 +51,18 @@ class SecureRemoteExecutor:
         node_id = self.peer_directory.capability_origin(step.capability_id)
         if node_id is None:
             return HandlerResult(
-                success=False, output={}, error=f"لا عقدة معروفة تملك capability_id={step.capability_id!r}."
+                success=False, output={}, error=f"No known node owns capability_id={step.capability_id!r}."
             )
 
         peer = self.trust_store.get_peer(node_id)
         if peer is None:
-            # الفرق الأمني الجوهري عن RemoteExecutor: عقدة مسجَّلة في
-            # PeerDirectory لكن غير موجودة في TrustStore (غير موثوقة عند
-            # طبقة النقل) تُرفَض صراحة، لا تُرسَل لها أي بيانات إطلاقًا.
+            # The key difference from RemoteExecutor: a node listed in
+            # PeerDirectory but absent from TrustStore is rejected as untrusted
+            # at the transport layer, before any payload is sent.
             return HandlerResult(
                 success=False,
                 output={},
-                error=f"العقدة {node_id!r} غير موجودة في TrustStore — رُفض الإرسال (غير موثوقة عند طبقة النقل).",
+                error=f"Node {node_id!r} is absent from TrustStore; sending was rejected as transport-untrusted.",
             )
 
         try:
@@ -81,10 +78,10 @@ class SecureRemoteExecutor:
                 timeout=self.timeout_seconds,
             )
         except (ConnectionError, OSError, TimeoutError) as exc:
-            return HandlerResult(success=False, output={}, error=f"فشل الاتصال الآمن بـ{node_id!r}: {exc}")
+            return HandlerResult(success=False, output={}, error=f"Secure connection to {node_id!r} failed: {exc}")
 
         if response is None:
-            return HandlerResult(success=False, output={}, error=f"استجابة فارغة من {node_id!r}.")
+            return HandlerResult(success=False, output={}, error=f"Empty response from {node_id!r}.")
 
         return HandlerResult(
             success=bool(response.get("success", False)),

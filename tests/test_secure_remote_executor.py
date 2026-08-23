@@ -45,7 +45,7 @@ def test_rejects_when_no_known_capability_owner(step, peer_directory, trust_stor
     executor = SecureRemoteExecutor(peer_directory, trust_store, secure_client=FakeSecureClient())
     result = executor(step, {"input": "hi"})
     assert not result.success
-    assert "لا عقدة معروفة" in result.error
+    assert "No known node" in result.error
 
 
 def test_rejects_owner_registered_but_not_in_trust_store(step, peer_directory, trust_store):
