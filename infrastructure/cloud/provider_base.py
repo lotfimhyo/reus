@@ -35,9 +35,9 @@ class CloudConfig:
     size: str  # provider-specific plan/size identifier
     max_instances: int
     budget_cap_usd_per_month: float
-    # سكربت cloud-init/user-data الفعلي الذي يُشغَّل عند إقلاع الخادم لأول
-    # مرة — انظر infrastructure/cloud/node_cloud_init.py. "" يعني: خادم
-    # فارغ، لا شيء يُشغَّل تلقائيًا (السلوك الأصلي قبل دعم نشر العقد).
+    # The actual cloud-init/user-data script run on the server's first boot;
+    # see infrastructure/cloud/node_cloud_init.py. "" means an empty server:
+    # nothing starts automatically (the original behavior before node deployment support).
     user_data: str = ""
 
 
