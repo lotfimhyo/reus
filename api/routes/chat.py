@@ -27,7 +27,7 @@ def enforce_chat_rate_limit(request: Request) -> None:
     if not allowed:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="تجاوزت الحد المسموح من الطلبات. حاول لاحقًا.",
+            detail="Request rate limit exceeded. Please try again later.",
             headers={"Retry-After": str(int(retry_after) + 1)},
         )
 
@@ -75,7 +75,7 @@ def chat(
         )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail={"message": "خدمة النموذج غير متاحة حالياً", "request_id": request_id},
+            detail={"message": "Model service is currently unavailable.", "request_id": request_id},
         ) from exc
     return ChatResponse.from_executor_result(result)
 
@@ -106,7 +106,7 @@ def stream_chat(
                 extra={"event_name": "chat_stream_executor_unavailable", "payload": {"request_id": request_id}},
                 exc_info=True,
             )
-            yield _sse("error", {"message": "خدمة النموذج غير متاحة حالياً", "request_id": request_id})
+            yield _sse("error", {"message": "Model service is currently unavailable.", "request_id": request_id})
             return
         yield _sse("answer", ChatResponse.from_executor_result(result).model_dump())
         yield _sse("complete", {"request_id": request_id})
