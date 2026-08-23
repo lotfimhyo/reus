@@ -62,7 +62,7 @@ def test_message_before_linking_prompts_to_link(telegram: TelegramService):
 
 def test_link_with_invalid_token_rejected(telegram: TelegramService):
     reply = telegram.handle_incoming_message("chat-1", "/link rvos_not-a-real-token")
-    assert "غير صالح" in reply
+    assert "invalid or revoked" in reply
 
 
 def test_link_with_valid_token_succeeds(telegram: TelegramService, agent_service, token_service):
@@ -85,7 +85,7 @@ def test_message_after_linking_creates_task_and_returns_ack(
 
     reply = telegram.handle_incoming_message("chat-1", "لخّص لي آخر الأخبار")
 
-    assert "جارٍ المعالجة" in reply
+    assert "being processed" in reply
 
 
 def test_unlink_removes_binding(telegram: TelegramService, agent_service, token_service):
@@ -140,7 +140,7 @@ def test_task_failure_delivers_error_to_correct_chat(
 
     assert len(delivered) == 1
     assert delivered[0][0] == "chat-7"
-    assert "فشلت" in delivered[0][1]
+    assert "Task failed" in delivered[0][1]
 
 
 def test_unrelated_task_events_do_not_trigger_delivery(telegram: TelegramService, orchestrator):
@@ -170,7 +170,7 @@ def test_sensitive_approval_is_bound_to_the_admin_chat_that_requested_it(token_s
 
     service.handle_incoming_message("admin-b", "/approve operation-1")
     assert executed == []
-    assert "محادثة إدارية أخرى" in delivered[-1][1]
+    assert "another administrative chat" in delivered[-1][1]
 
     service.handle_incoming_message("admin-a", "/approve operation-1")
     assert executed == [True]
@@ -192,4 +192,4 @@ def test_sensitive_approval_expires_fail_closed(token_service, orchestrator, eve
 
     service.handle_incoming_message("admin", "/approve operation-expiring")
     assert executed == []
-    assert "انتهت صلاحية" in delivered[-1][1]
+    assert "expired" in delivered[-1][1]
