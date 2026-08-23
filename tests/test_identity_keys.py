@@ -4,18 +4,18 @@ Founder: Lotfi Mahiddine
 Organization: Reulink
 Contact: Contact@reulink.app
 
-أول اختبارات مباشرة لـ infrastructure/cognitive_core/identity/keys.py —
-البدائل التشفيرية (Ed25519) التي تُوقِّع كل استدعاء بين الطبقات ويُدقَّق
-عليها. كانت 60% مغطاة فقط رغم أنها الأساس الذي يُبنى عليه أي ضمان أمان
-لاحق (توقيع، تدقيق، هوية عقدة). يغطي هذا الملف خصائص الأمان الجوهرية،
-لا فقط "الاستدعاء لا يرمي استثناءً":
+First direct tests for infrastructure/cognitive_core/identity/keys.py—the
+Ed25519 cryptographic primitives that sign and verify every cross-layer call.
+They had only 60% coverage despite forming the basis for subsequent security
+guarantees (signing, audit, and node identity). This file covers core security
+properties, not merely whether calls raise no exception:
 
-- جولة توقيع/تحقق كاملة تنجح مع المفتاح الصحيح.
-- تعديل حرف واحد في الحمولة يُفشل التحقق (كشف العبث الفعلي).
-- التحقق بمفتاح عام خاطئ يُفشل التحقق (لا قبول عرضي).
-- جولة تصدير/استيراد المفتاح الخاص عبر hex تُعيد نفس زوج المفاتيح فعليًا
-  (لا فقط "لا يرمي استثناءً" — بل يوقّع/يتحقق بشكل متبادل صحيح).
-- `is_valid` غلاف بولياني صحيح للنجاح والفشل معًا.
+- A complete signing and verification round trip succeeds with the correct key.
+- Modifying one byte of the payload fails verification (real tamper detection).
+- Verification with the wrong public key fails (no accidental acceptance).
+- A private-key hex export/import round trip recreates the same keypair in
+  practice—not merely without raising, but with correct mutual signing and verification.
+- `is_valid` is a correct Boolean wrapper for both success and failure.
 """
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ class TestKeyGenerationAndSigning(unittest.TestCase):
         payload = b"transfer authority to node-b"
         signature = keypair.sign(payload)
 
-        verify(keypair.public_key_hex, payload, signature)  # لا يرمي = نجاح
+        verify(keypair.public_key_hex, payload, signature)  # No exception means success.
 
     def test_tampered_payload_fails_verification(self):
         keypair = generate_keypair()
@@ -69,13 +69,13 @@ class TestHexSerializationRoundtrips(unittest.TestCase):
         signature = keypair.sign(payload)
 
         reconstructed_public = public_key_from_hex(keypair.public_key_hex)
-        # يجب أن يتحقق المفتاح المُعاد بناؤه من نفس التوقيع دون استثناء
+        # The reconstructed key must verify the same signature without error.
         reconstructed_public.verify(signature, payload)
 
     def test_private_key_hex_roundtrip_preserves_signing_ability(self):
-        """جولة تصدير/استيراد المفتاح الخاص (مطلوبة لهوية عقدة ثابتة عبر
-        إعادة التشغيل، راجع توثيق الدالة) — يجب أن يبقى المفتاح المُعاد
-        بناؤه قادرًا على توقيع محتوى يتحقق منه المفتاح العام الأصلي."""
+        """A private-key export/import round trip is required for stable node
+        identity across restarts; see the function documentation. The restored
+        key must remain able to sign content that the original public key verifies."""
         original = generate_keypair()
         restored = keypair_from_private_hex(original.private_key_hex)
 
@@ -83,7 +83,7 @@ class TestHexSerializationRoundtrips(unittest.TestCase):
 
         payload = b"signed after restart"
         signature = restored.sign(payload)
-        verify(original.public_key_hex, payload, signature)  # لا يرمي = نجاح
+        verify(original.public_key_hex, payload, signature)  # No exception means success.
 
 
 class TestIsValidBooleanWrapper(unittest.TestCase):
