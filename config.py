@@ -14,29 +14,29 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_prefix="REUS_", extra="ignore")
 
-    api_key: str = "change-me-in-production"  # يجب ضبطه عبر REUS_API_KEY في بيئة الإنتاج
+    api_key: str = "change-me-in-production"  # Set through REUS_API_KEY in production.
     environment: str = "development"
     log_level: str = "INFO"
-    # حد حماية أولي لحجم JSON الوارد؛ تمنع القيمة المحدودة استنزاف الذاكرة قبل
-    # وصول الطلب إلى منطق المسار. ارفعها صراحة عند الحاجة مع مراجعة المخاطر.
+    # An early limit for incoming JSON bodies prevents memory exhaustion before
+    # a request reaches route logic. Raise it explicitly only after risk review.
     max_request_body_bytes: int = 1_048_576
     security_headers_enabled: bool = True
-    # "memory": مستودعات في الذاكرة (اختبار سريع، بلا ديمومة).
-    # "postgres": PostgreSQL + pgvector (ديمومة كاملة). التبديل عبر REUS_STORAGE_BACKEND فقط.
+    # "memory": in-memory repositories for fast, non-persistent testing.
+    # "postgres": PostgreSQL + pgvector for durable storage. Switch only via REUS_STORAGE_BACKEND.
     storage_backend: str = "memory"
     database_url: str = "postgresql+psycopg://reus_veritas:reus_veritas_dev_pw@localhost:5432/reus_veritas_os"
 
-    # "memory": ناقل أحداث داخل العملية الواحدة فقط (In-Process، متزامن).
-    # "redis": ناقل موزّع عبر Redis Pub/Sub (يدعم تعدد العُقد والعمّال المنفصلين).
+    # "memory": synchronous event bus within one process only.
+    # "redis": distributed Redis Pub/Sub event bus for multiple nodes and separate workers.
     event_bus_backend: str = "memory"
     redis_url: str = "redis://localhost:6379/0"
 
-    # عامل تنفيذ تلقائي: يشترك في task.ready وينفّذ المهام فعليًا دون تدخل يدوي عبر API
+    # Automatic execution worker: subscribes to task.ready and runs tasks without manual API intervention.
     worker_enabled: bool = False
     worker_pool_size: int = 4
-    # تفعيل صريح فقط لمسار عامل مهام عنقودي داخل عملية FastAPI الإدارية.
-    # يبقى معطلاً افتراضياً حتى لا تُنشأ هوية عقدة أو منافذ mTLS أو قيادة Raft
-    # ضمن التشغيل المحلي الشخصي العادي.
+    # Explicit opt-in only for the clustered task-worker path inside the administrative FastAPI process.
+    # It remains disabled by default so ordinary local operation does not create a node identity,
+    # mTLS ports, or Raft leadership state.
     cluster_worker_enabled: bool = False
     cluster_worker_role_id: str = "text-node"
     cluster_worker_data_dir: str = "data/cluster_worker"
@@ -48,133 +48,125 @@ class Settings(BaseSettings):
     cluster_worker_seed_url: str = ""
     cluster_worker_join_timeout_seconds: float = 300.0
 
-    # "default": DefaultTaskExecutor (يستخدم قدرات الوكيل/الذاكرة الحالية فقط).
-    # "model_router": ModelRoutingExecutor (يوجّه المهمة لأنسب نموذج ويستدعيه فعليًا عبر Anthropic API).
-    # "cognitive": CognitiveTaskExecutor (دورة Veritas الإدراكية الكاملة: تحليل
-    #   قدرات مسجَّلة -> خطط مرشّحة مقيَّمة بالتكلفة/المخاطر -> تنفيذ محلي معزول
-    #   بـ sandbox -> تعلّم مستمر من موثوقية كل قدرة عبر التشغيلات اللاحقة).
-    # "default" | "model_router" (نماذج API ثانوية حصرًا) | "ollama" (Ollama
-    # أساسيًا + سقوط تلقائي حقيقي للنماذج الثانوية عند تعذّر الوصول له —
-    # انظر application/ollama_task_executor.py) | "cognitive"
+    # "default": DefaultTaskExecutor, using only current agent capabilities and memory.
+    # "model_router": ModelRoutingExecutor, which routes a task to a suitable model and invokes it.
+    # "cognitive": CognitiveTaskExecutor, with capability analysis, cost/risk-scored candidate
+    #   plans, isolated local sandbox execution, and later reliability learning per capability.
+    # "default" | "model_router" (secondary API models only) | "ollama" (Ollama first,
+    # with genuine fallback to secondary models when it is unavailable; see
+    # application/ollama_task_executor.py) | "cognitive"
     task_executor: str = "default"
 
-    # مسار بيانات نواة Veritas الإدراكية (سجل القدرات + الذاكرة الحدثية/الدلالية)
+    # Cognitive-core data path (capability registry and episodic/semantic memory).
     cognitive_core_data_dir: str = "data/cognitive_core"
-    # سجل تدقيق append-only بسلسلة هاشات مشترك بين هوية/قدرة/ذاكرة/محرك إدراكي
+    # Append-only, hash-chained audit log shared by identity, capability, memory, and cognitive engine.
     cognitive_core_audit_log_path: str = "data/cognitive_core/audit_log.jsonl"
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     google_api_key: str = ""
 
-    # تكامل تلغرام: إرسال/استلام المهام عبر بوت حقيقي (Long Polling)
+    # Telegram integration: send and receive tasks through a real bot using long polling.
     telegram_enabled: bool = False
     telegram_bot_token: str = ""
     telegram_poll_timeout: int = 25
-    # مدة بقاء التأكيدات الإدارية الحساسة صالحة. تنتهي الطلبات في الذاكرة عند
-    # إعادة التشغيل أيضاً؛ لا تستعاد callbacks غير قابلة للتحقق تلقائياً.
+    # Lifetime for sensitive administrative confirmations. In-memory requests also expire on
+    # restart; non-verifiable callbacks are never automatically restored.
     telegram_approval_ttl_seconds: float = 300.0
     telegram_approval_store_path: str = "data/telegram_approvals.json"
     telegram_approval_audit_path: str = "data/telegram_approval_audit.jsonl"
-    # مدة تفويض ربط لوحة التحكم التي يقرها المشرف عبر Telegram. يرسل التفويض
-    # عبر HTTPS مباشرة بين النواة واللوحة، ولا يحتوي Telegram على سر.
+    # Lifetime for an administrator-approved control-plane pairing. Authorization travels
+    # directly over HTTPS between core and control plane; Telegram contains no secret.
     control_plane_pairing_ttl_seconds: float = 300.0
     control_plane_pairing_store_path: str = "data/control_plane_pairings.json"
     control_plane_pairing_audit_path: str = "data/control_plane_pairing_audit.jsonl"
-    # قائمة سماح صريحة بمعرّفات المحادثات المصرَّح لها فقط (مفصولة بفواصل).
-    # أي رسالة من chat_id غير مُدرَج هنا تُسجَّل وتُهمَل قبل الوصول لأي أمر أو مهمة.
+    # Explicit allowlist of authorized chat IDs only, separated by commas. Any message from an
+    # unlisted chat ID is recorded and ignored before reaching a command or task.
     telegram_allowed_chat_ids: str = ""
 
-    # مفتاح Fernet لتشفير محتوى الذاكرة عند التخزين في PostgreSQL. إلزامي عمليًا
-    # عند storage_backend=postgres (يُتحقق منه عند إنشاء EncryptionService، لا صمت).
+    # Fernet key for encrypting memory content in PostgreSQL. It is operationally required for
+    # storage_backend=postgres and is verified when EncryptionService is created.
     encryption_key: str = ""
 
-    # تكامل النماذج المحلية عبر Ollama (خادم محلي حقيقي، `ollama serve`):
-    # OllamaSynthesizer/IndependentTestReviewer (اقتراح مهارات جديدة للعقد)،
-    # وLocalModelBuilder (بناء نموذج متطوّر معزول عبر `ollama create` من
-    # بيانات تدريب متراكمة فعليًا — انظر infrastructure/model_training/).
+    # Local model integration through an actual Ollama server (`ollama serve`):
+    # OllamaSynthesizer and IndependentTestReviewer propose node capabilities, while
+    # LocalModelBuilder builds an isolated evolved model via `ollama create` from accumulated
+    # training data; see infrastructure/model_training/.
     ollama_enabled: bool = False
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1"
-    # Kimi خدمة API خارجية متوافقة مع OpenAI وليست محركاً محلياً؛ لذلك تبقى
-    # معطلة افتراضياً ولا تستخدم إلا كسقوط اختياري عندما يقرر المطور ذلك.
+    # Kimi is an external OpenAI-compatible API service, not a local engine. It remains disabled
+    # by default and is used only as an optional fallback when the developer chooses it.
     kimi_enabled: bool = False
     kimi_api_key: str = ""
     kimi_base_url: str = "https://api.moonshot.ai/v1"
     kimi_model: str = "kimi-k3"
-    # Supabase مرآة اختيارية للملخصات المعتمدة فقط، وليست مستودع النواة المحلية.
+    # Supabase is an optional mirror for approved summaries only, not the local-core store.
     supabase_sync_enabled: bool = False
     supabase_url: str = ""
     supabase_key: str = ""
     supabase_sync_table: str = "reus_sync_events"
-    # اسم النموذج المتطوّر المعزول — مختلف عمدًا عن ollama_model (نموذج
-    # الاستخدام اليومي) حتى يبقى معزولًا كما طُلِب صراحةً.
+    # The isolated evolved-model name intentionally differs from ollama_model, the daily-use
+    # model, so it remains isolated.
     ollama_evolved_model_name: str = "reus-evolved"
-    # دورة الاستقلالية الكاملة: عند غياب قدرة، يصمم Ollama مواصفة وكيل فقط؛
-    # ثم تمر إجبارياً بمصنع العزل والحوكمة. معطلة افتراضياً حتى يفعّلها المطور.
+    # Full autonomy cycle: when a capability is absent, Ollama designs an agent specification
+    # only; it must then pass the sandboxed builder and governance. Disabled until a developer enables it.
     autonomy_enabled: bool = False
     autonomy_allow_agent_design: bool = True
     autonomy_auto_promote_low_risk: bool = False
     autonomy_max_agent_builds_per_goal: int = 1
     autonomy_governance_store_path: str = "data/autonomy_governance.json"
     autonomy_governance_audit_path: str = "data/autonomy_governance_audit.jsonl"
-    # فاصل التقرير اليومي بالثواني (86400 = يوم واحد). يُضبط لقيمة أصغر في
-    # التطوير/الاختبار اليدوي عبر REUS_DAILY_REPORT_INTERVAL_SECONDS.
+    # Daily-report interval in seconds (86,400 = one day). Use a smaller value for development
+    # or manual testing through REUS_DAILY_REPORT_INTERVAL_SECONDS.
     daily_report_interval_seconds: float = 86400.0
     daily_report_enabled: bool = False
-    # الحد الأدنى لعدد أمثلة التدريب المتراكمة قبل اعتبار النموذج المتطوّر
-    # "ناضجًا" للترقية — انظر application/model_promotion_service.py لبقية
-    # معايير النضج (نجاح آخر بناء + عدم وجود قدرات ثبت عدم موثوقيتها).
-    # القيمة الافتراضية صغيرة عمدًا؛ ارفعها بكثير في أي تشغيل إنتاجي حقيقي.
+    # Minimum accumulated training examples before an evolved model can be considered mature
+    # enough for promotion. See application/model_promotion_service.py for other criteria:
+    # the latest build must succeed and no capabilities may be established as unreliable.
+    # The default is intentionally small; increase it substantially for genuine production use.
     model_promotion_min_examples: int = 200
-    # عنوان بوابة تمهيد عقدة منسِّقة (coordinator) قائمة بالفعل — إن ضُبِط،
-    # أي عقدة سحابية جديدة تُنشَر عبر /deploy_node تنضم تلقائيًا لهذا العنقود
-    # عند إقلاعها. فارغ = عقد سحابية مستقلة بلا انضمام تلقائي (لا يزال ممكنًا
-    # يدويًا لاحقًا عبر seed-url على العقدة نفسها).
+    # Bootstrap address of an existing coordinator. If configured, every new cloud node deployed
+    # through /deploy_node joins that cluster at startup. An empty value means independent cloud
+    # nodes without automatic joining; manual joining via the node's seed URL remains possible.
     cluster_coordinator_bootstrap_url: str = ""
 
-    # مفتاح API مخصّص لواجهة الويب العامة (/chat) — منفصل تمامًا عن api_key
-    # الإداري الكامل الصلاحيات. لا يمنح أي وصول لـ/workflows، /agents،
-    # /memory، أو أي مسار إداري آخر — فقط /chat. هذا الفصل على مستوى بيانات
-    # الاعتماد هو الخطوة الأولى الحقيقية نحو "فصل صارم بين نطاق المستخدم
-    # وواجهة المطوّر" المطلوب صراحةً؛ سياسة الفصل الكاملة عبر كل الطبقات
-    # تبقى بندًا منفصلًا موثَّقًا في README تحت "ما لم يُبنَ بعد".
+    # API key dedicated to the public web surface (/chat), completely separate from the
+    # fully privileged administrative api_key. It grants no access to /workflows, /agents,
+    # /memory, or any other administrative route. This credential-level separation is a first
+    # step toward strict user/developer surface separation; the complete cross-layer policy is
+    # documented in the README under "What is not built yet".
     user_api_key: str = ""
 
-    # تحديد معدل على /chat فقط (الواجهة العامة الوحيدة بلا امتياز إداري):
-    # سقف طلبات لكل عنوان IP خلال نافذة زمنية متحركة. القيمة الافتراضية
-    # سخية عمدًا (استخدام تفاعلي طبيعي) لا تُضيّق على مستخدم حقيقي، لكنها
-    # تمنع إغراقًا آليًا واضحًا. اضبط عبر REUS_CHAT_RATE_LIMIT_PER_MINUTE.
+    # Rate limit for /chat only, the sole public surface without administrative privilege:
+    # a request ceiling per IP address in a moving time window. The default permits ordinary
+    # interactive use while blocking obvious automated flooding. Configure it with REUS_CHAT_RATE_LIMIT_PER_MINUTE.
     chat_rate_limit_per_minute: int = 30
 
-    # تحديد معدل على كل مسار يتحقق بمفتاح إداري/رمز وكيل (verify_api_key،
-    # verify_agent_access، require_agent_scope) — يُطبَّق قبل مقارنة المفتاح
-    # نفسها، فيحدّ من محاولات تخمين المفتاح الإداري الفعلية أيضًا، لا فقط
-    # الاستخدام العادي بعد نجاح المصادقة. سقف أدنى عمدًا (المفتاح الإداري
-    # أقوى صلاحية في النظام؛ استخدام لوحة تحكم بشرية طبيعي لا يقترب من هذا
-    # الرقم خلال دقيقة واحدة). اضبط عبر REUS_ADMIN_RATE_LIMIT_PER_MINUTE.
+    # Rate limit for every route verified by an administrative key or agent token
+    # (verify_api_key, verify_agent_access, require_agent_scope). It is applied before key
+    # comparison, limiting real administrative-key guessing attempts as well as normal use after
+    # authentication. The low ceiling is intentional because a human control plane normally will
+    # not approach it in one minute. Configure with REUS_ADMIN_RATE_LIMIT_PER_MINUTE.
     admin_rate_limit_per_minute: int = 20
     rate_limiter_max_keys: int = 10_000
     rate_limiter_cleanup_interval_seconds: float = 60.0
 
-    # افتراضي آمن: false. لا يُوثَق بـX-Forwarded-For لتحديد هوية العميل في
-    # تحديد المعدل إلا إذا كان الخادم فعليًا خلف وكيل عكسي حقيقي يضبط هذه
-    # الترويسة بنفسه ويرفض أي قيمة واردة من عميل مباشر. النشر الافتراضي
-    # (run.sh، Setup.bat، docker compose بلا بروفايل split) يكشف الخادم
-    # مباشرة بلا وكيل — تفعيل هذا الإعداد في ذلك السياق يُبطِل تحديد المعدل
-    # بالكامل (أي عميل يزوّر الترويسة يحصل على حصة جديدة في كل طلب).
+    # Secure default: false. Do not trust X-Forwarded-For for rate-limit identity unless the
+    # server is genuinely behind a reverse proxy that sets the header itself and rejects values
+    # from direct clients. Default deployments expose the server without such a proxy; enabling
+    # this setting there defeats rate limiting because each client can forge a fresh identity.
     trust_proxy_headers: bool = False
 
-    # يبذر وكيلًا افتراضيًا واحدًا جاهزًا للعمل عند أول إقلاع (مرة واحدة فقط،
-    # لا تكرار عند إعادة التشغيل) — يزيل خطوة تسجيل وكيل يدويًا قبل أن يصبح
-    # ربط تلغرام أو أي ميزة تعتمد على وكيل قابلة للاستخدام. معطَّل تلقائيًا
-    # إن كان هناك وكيل واحد على الأقل مسجَّلًا مسبقًا بأي طريقة.
+    # Seed one ready-to-use default agent at first startup only. This removes manual agent
+    # registration before Telegram pairing or agent-dependent features can be used. It is
+    # automatically disabled if any agent has already been registered.
     auto_seed_default_agent: bool = True
     default_agent_name: str = "default-agent"
 
-    # "env": القراءة من متغيرات البيئة/.env مباشرة (الافتراضي، السلوك الحالي بلا تغيير).
-    # "vault": HashiCorp Vault (KV v2).  "aws": AWS Secrets Manager.
-    # عند التفعيل، تُستبدل كل الحقول الحساسة أعلاه (api_key, anthropic_api_key, ...)
-    # بقيمها من المزوّد المُختار إن وُجدت، فور أول استدعاء لـ get_settings().
+    # "env": read directly from environment variables/.env (default, unchanged behavior).
+    # "vault": HashiCorp Vault (KV v2). "aws": AWS Secrets Manager.
+    # When enabled, sensitive fields above (api_key, anthropic_api_key, and others) are replaced
+    # by values from the selected provider when present, at the first get_settings() call.
     secrets_backend: str = "env"
     secrets_vault_addr: str = ""
     secrets_vault_token: str = ""
