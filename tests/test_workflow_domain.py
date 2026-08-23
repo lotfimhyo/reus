@@ -79,7 +79,7 @@ def test_diamond_dependency_waits_for_both_branches():
     wf.mark_ready(by_name["b"].task_id)
     wf.start_task(by_name["b"].task_id)
     wf.complete_task(by_name["b"].task_id)
-    # d لا يجب أن تصبح جاهزة قبل اكتمال c أيضًا
+    # d must not become ready before c also completes.
     assert "d" not in {t.name for t in wf.ready_tasks()}
 
     wf.mark_ready(by_name["c"].task_id)
@@ -92,7 +92,7 @@ def test_invalid_transition_raises():
     wf = Workflow.create("pipeline", [TaskSpec(name="only")])
     task_id = list(wf.tasks.keys())[0]
     with pytest.raises(InvalidTaskTransition):
-        wf.complete_task(task_id)  # لا يمكن الإكمال قبل RUNNING
+        wf.complete_task(task_id)  # Completion is invalid before RUNNING.
 
 
 def test_fail_retries_before_permanent_failure():
@@ -102,7 +102,7 @@ def test_fail_retries_before_permanent_failure():
     wf.mark_ready(task_id)
     wf.start_task(task_id)
     node, cancelled = wf.fail_task(task_id, error="timeout")
-    assert node.state == TaskState.PENDING  # أُعيدت المحاولة (إصلاح ذاتي)
+    assert node.state == TaskState.PENDING  # Retried (self-healing).
     assert node.retry_count == 1
     assert cancelled == []
 
