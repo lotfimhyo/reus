@@ -49,8 +49,8 @@ def test_rejects_when_no_known_capability_owner(step, peer_directory, trust_stor
 
 
 def test_rejects_owner_registered_but_not_in_trust_store(step, peer_directory, trust_store):
-    """أمان حرج: عقدة معروفة في PeerDirectory (تدّعي ملكية القدرة) لكن غير
-    موجودة في TrustStore يجب أن تُرفَض، ولا تُرسَل لها أي بيانات إطلاقًا."""
+    """Security-critical: a PeerDirectory node claiming capability ownership
+        but absent from TrustStore must be rejected and receive no data at all."""
     peer_directory.register_capability_origin("cap-1", "node-b")
     peer_directory.register_node("node-b", "https://not-trusted:9999")
 
@@ -60,7 +60,7 @@ def test_rejects_owner_registered_but_not_in_trust_store(step, peer_directory, t
 
     assert not result.success
     assert "TrustStore" in result.error
-    assert fake_client.calls == []  # لا محاولة إرسال إطلاقًا
+    assert fake_client.calls == []  # No send attempt at all.
 
 
 def test_dispatches_over_secure_client_when_peer_trusted(step, peer_directory, trust_store):
