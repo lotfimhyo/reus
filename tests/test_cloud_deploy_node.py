@@ -74,11 +74,12 @@ class TestCloudDeployNode(unittest.TestCase):
             provider_factory=lambda name: self.fake_provider,
             event_bus=event_bus,
             seed_bootstrap_url_provider=lambda: self.seed_url,
+            token_resolver=lambda _provider: "test-provider-token",
         )
 
     def _configure_cloud(self, with_source_fetch_cmd: bool = True) -> None:
         cmd = (
-            "/configure_cloud provider=digitalocean token=tok region=nyc3 "
+            "/configure_cloud provider=digitalocean region=nyc3 "
             "size=s-1vcpu-1gb max_instances=2 budget_cap=20"
         )
         if with_source_fetch_cmd:

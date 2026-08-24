@@ -18,6 +18,7 @@ from __future__ import annotations
 import httpx
 
 TELEGRAM_API_BASE = "https://api.telegram.org"
+LONG_POLL_TIMEOUT_GRACE_SECONDS = 10.0
 
 
 class TelegramAPIError(Exception):
@@ -31,9 +32,9 @@ class TelegramClient:
         # HTTP-client injection enables complete tests without a network or real bot token.
         self._http = http_client or httpx.Client(base_url=TELEGRAM_API_BASE, timeout=35.0)
 
-    def _call(self, method: str, params: dict | None = None) -> dict:
+    def _call(self, method: str, params: dict | None = None, *, timeout: float | None = None) -> dict:
         try:
-            response = self._http.post(f"/bot{self._token}/{method}", json=params or {})
+            response = self._http.post(f"/bot{self._token}/{method}", json=params or {}, timeout=timeout)
         except httpx.HTTPError as exc:
             raise TelegramAPIError(method, f"Network error: {exc}") from exc
 
@@ -50,6 +51,12 @@ class TelegramClient:
         # 4,096 is Telegram's actual message-length limit; truncate rather than fail delivery.
         self._call("sendMessage", {"chat_id": chat_id, "text": text[:4096]})
 
+    def get_me(self) -> dict:
+        """Return the authenticated bot identity through Telegram's read-only
+        `getMe` method. This is suitable for verifying a supplied token before
+        long polling is started; it never sends a message or changes bot state."""
+        return self._call("getMe")
+
     def get_updates(self, offset: int | None = None, timeout: int = 25) -> list[dict]:
         """Long polling keeps the connection open for up to `timeout` seconds
         while waiting for messages, or returns immediately when updates exist.
@@ -57,7 +64,10 @@ class TelegramClient:
         params: dict = {"timeout": timeout}
         if offset is not None:
             params["offset"] = offset
-        return self._call("getUpdates", params)
+        # Telegram may hold the long-poll request for the full requested
+        # interval. Keep the client read deadline beyond that interval so a
+        # healthy empty poll is not reported as a transport failure.
+        return self._call("getUpdates", params, timeout=timeout + LONG_POLL_TIMEOUT_GRACE_SECONDS)
 
     def close(self) -> None:
         self._http.close()

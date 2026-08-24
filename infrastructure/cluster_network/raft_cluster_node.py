@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from infrastructure.cluster_network.cluster_snapshot_node import ClusterSnapshotNode
 from infrastructure.cluster_network.raft import LogEntry, RaftNode
+from infrastructure.cluster_network.recovery import CellRecoveryPlanner
 import time
 
 
@@ -98,6 +99,8 @@ class RaftClusterNode(ClusterSnapshotNode):
         self.decision_state = ReplicatedDecisionState(); self.peer_liveness: dict[str, dict] = {}
         self.task_state = ReplicatedTaskLeaseState()
         self.governance_state = ReplicatedGovernanceDecisionState()
+        self._recovery_planner: CellRecoveryPlanner | None = None
+        self._standby_transport_ids: set[str] = set()
         self.raft.on_commit = self._apply_commit
         self.raft.get_snapshot_data = self._snapshot
         self.raft.on_snapshot_restore = self._restore
@@ -139,7 +142,7 @@ class RaftClusterNode(ClusterSnapshotNode):
         try:
             term, success = self.raft.handle_install_snapshot(
                 int(body["term"]), body["leader_id"], int(body["last_included_index"]),
-                int(body["last_included_term"]), body["snapshot_data"],
+                int(body["last_included_term"]), body["snapshot_data"], body.get("membership"),
             )
             return {"term": term, "success": success}
         except (KeyError, TypeError, ValueError):
@@ -148,11 +151,65 @@ class RaftClusterNode(ClusterSnapshotNode):
     def cluster_status(self) -> dict:
         return {**self.raft.status(), **self.decision_state.status(), **self.task_state.status(), **self.governance_state.status(), "transport_node_id": self.transport_node_id, "peers": self.peer_liveness}
 
+    def handle_cluster_snapshot(self, body: dict, sender_cn: str | None) -> dict:
+        snapshot = super().handle_cluster_snapshot(body, sender_cn)
+        snapshot["raft_membership"] = self.raft.membership_snapshot()
+        return snapshot
+
     def assign_task(self, task_id: str, assignee: str, lease_seconds: float = 30.0) -> bool:
         return self.raft.propose_and_wait({"kind": "task_assign", "task_id": task_id, "assignee": assignee, "lease_until": time.time() + max(1.0, lease_seconds), "attempt": 1})
 
     def complete_task(self, task_id: str) -> bool:
         return self.raft.propose_and_wait({"kind": "task_complete", "task_id": task_id})
+
+    def admit_trusted_peer(self, transport_node_id: str) -> bool:
+        """Promote an mTLS-trusted peer into this cell through joint consensus."""
+        if self.trust_store.get_peer_by_transport_id(transport_node_id) is None:
+            return False
+        voters = set(self.raft.status()["voters"])
+        voters.add(transport_node_id)
+        return self.raft.propose_membership_change(sorted(voters))
+
+    def register_trusted_learner(self, transport_node_id: str) -> bool:
+        """Replicate to a pre-approved standby before it can receive a vote."""
+        if self.trust_store.get_peer_by_transport_id(transport_node_id) is None:
+            return False
+        return self.raft.register_learner(transport_node_id)
+
+    def configure_automatic_recovery(
+        self,
+        standby_transport_ids: list[str],
+        *,
+        failure_threshold: int = 3,
+        minimum_suspect_seconds: float = 5.0,
+    ) -> bool:
+        """Enable recovery with explicitly trusted standby peers only.
+
+        This never creates machines or grants mTLS trust; the normal human
+        approval workflow must register every standby before this method runs.
+        """
+        standby_ids = set(standby_transport_ids)
+        if not standby_ids or any(self.trust_store.get_peer_by_transport_id(peer_id) is None for peer_id in standby_ids):
+            return False
+        self._recovery_planner = CellRecoveryPlanner(
+            failure_threshold=failure_threshold,
+            minimum_suspect_seconds=minimum_suspect_seconds,
+        )
+        self._standby_transport_ids = standby_ids
+        return all(self.raft.register_learner(peer_id) or self.raft.is_learner(peer_id) for peer_id in standby_ids)
+
+    def replace_failed_peer(self, failed_transport_node_id: str, standby_transport_node_id: str) -> bool:
+        """Atomically replace one cell voter with an already-trusted standby."""
+        if self.trust_store.get_peer_by_transport_id(standby_transport_node_id) is None:
+            return False
+        if self.peer_liveness.get(standby_transport_node_id, {}).get("alive") is not True:
+            return False
+        voters = set(self.raft.status()["voters"])
+        if failed_transport_node_id not in voters or standby_transport_node_id in voters:
+            return False
+        voters.remove(failed_transport_node_id)
+        voters.add(standby_transport_node_id)
+        return self.raft.propose_membership_change(sorted(voters))
 
     def publish_evidence_summary(self, evidence_id: str, summary: str, source_hash: str, confidence: float) -> bool:
         if len(summary) > 2_000 or len(source_hash) > 128: return False
@@ -200,6 +257,25 @@ class RaftClusterNode(ClusterSnapshotNode):
             for task_id, task in task_state._tasks.items():
                 if task.get("status") == "leased" and task.get("assignee") == peer_id:
                     raft.propose({"kind": "task_requeue", "task_id": task_id, "reason": "peer_unreachable"})
+        planner = getattr(self, "_recovery_planner", None)
+        if planner is None or raft is None:
+            return
+        ready_standbys = {
+            standby_id
+            for standby_id in self._standby_transport_ids
+            if raft.is_learner(standby_id) and self.peer_liveness.get(standby_id, {}).get("alive") is True
+        }
+        plan = planner.observe(
+            peer_id,
+            alive,
+            voters=set(raft.status()["voters"]),
+            ready_standbys=ready_standbys,
+        )
+        if plan is not None:
+            if self.replace_failed_peer(plan.failed_voter_id, plan.standby_voter_id):
+                planner.resolve(plan.failed_voter_id)
+            else:
+                planner.retry(plan.failed_voter_id)
 
     def _apply_commit(self, entry: LogEntry) -> None:
         self.decision_state.apply(entry); self.task_state.apply(entry); self.governance_state.apply(entry)

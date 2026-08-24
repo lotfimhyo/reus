@@ -86,7 +86,26 @@ class RaftStorage:
             data = json.load(f)
         return data["last_included_index"], data["last_included_term"], data["snapshot_data"]
 
-    def save_snapshot(self, last_included_index: int, last_included_term: int, snapshot_data: dict) -> None:
+    def load_snapshot_membership(self) -> Optional[dict]:
+        """Load an optional Raft-owned voter configuration from a snapshot.
+
+        The application snapshot shape remains unchanged for backward
+        compatibility; membership is metadata owned by the consensus layer.
+        """
+        if not os.path.exists(self._snapshot_path):
+            return None
+        with open(self._snapshot_path, "r", encoding="utf-8") as f:
+            value = json.load(f).get("membership")
+        return value if isinstance(value, dict) else None
+
+    def save_snapshot(
+        self,
+        last_included_index: int,
+        last_included_term: int,
+        snapshot_data: dict,
+        *,
+        membership: Optional[dict] = None,
+    ) -> None:
         os.makedirs(os.path.dirname(self._snapshot_path) or ".", exist_ok=True)
         tmp_path = f"{self._snapshot_path}.tmp"
         data = {
@@ -94,6 +113,8 @@ class RaftStorage:
             "last_included_term": last_included_term,
             "snapshot_data": snapshot_data,
         }
+        if membership is not None:
+            data["membership"] = membership
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(data, f)
             f.flush()

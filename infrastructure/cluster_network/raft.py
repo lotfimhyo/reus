@@ -39,6 +39,7 @@ from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import Callable, Dict, List, Optional, Tuple
 
+from infrastructure.cluster_network.membership import MembershipError, VoterConfiguration
 from infrastructure.cluster_network.raft_storage import RaftStorage
 
 
@@ -64,11 +65,20 @@ class RaftNode:
         election_timeout_range: Tuple[float, float] = (1.0, 2.0),
         heartbeat_interval: float = 0.3,
         storage: Optional[RaftStorage] = None,
+        strict_membership: bool = False,
     ):
         self.node_id = node_id
-        self._get_peer_ids = get_peer_ids  # cluster membership can grow (see discovery.py)
+        self._get_peer_ids = get_peer_ids
         self._rpc = rpc_client
         self._storage = storage
+
+        initial_voters = set(get_peer_ids())
+        initial_voters.add(node_id)
+        self._membership = VoterConfiguration(frozenset(initial_voters))
+        self._pending_joint_voters: Optional[frozenset[str]] = None
+        self._membership_enforced = strict_membership
+        self._retired_peers: set[str] = set()
+        self._learners: set[str] = set()
 
         self._lock = threading.RLock()
         self.current_term = 0
@@ -120,6 +130,9 @@ class RaftNode:
         snap = self._storage.load_snapshot()
         if snap is not None:
             self._snapshot_last_included_index, self._snapshot_last_included_term, data = snap
+            membership = self._storage.load_snapshot_membership()
+            if membership is not None:
+                self._membership = VoterConfiguration.from_payload(membership)
             # Can't call on_snapshot_restore yet — the owner sets that
             # callback AFTER constructing this RaftNode. Stash the data;
             # the owner is expected to read `restored_snapshot_data`
@@ -141,6 +154,9 @@ class RaftNode:
             self._snapshot_last_included_index,
             min(persisted_commit, self._last_log_index()),
         )
+        for entry in self.log:
+            if entry.index <= self.commit_index:
+                self._apply_membership_command(entry.command)
 
     def _persist(self) -> None:
         """Must be called (while holding self._lock) after any change to
@@ -204,7 +220,12 @@ class RaftNode:
             self._snapshot_last_included_term = snapshot_term
 
             if self._storage:
-                self._storage.save_snapshot(target, snapshot_term, snapshot_data)
+                self._storage.save_snapshot(
+                    target,
+                    snapshot_term,
+                    snapshot_data,
+                    membership=self._membership.to_payload(),
+                )
                 self._persist()  # the now-shorter log needs re-persisting too
             return True
 
@@ -236,6 +257,8 @@ class RaftNode:
 
     def _start_election(self) -> None:
         with self._lock:
+            if self._membership_enforced and self.node_id not in self._membership.all_voters:
+                return
             self.current_term += 1
             self.role = Role.CANDIDATE
             self.voted_for = self.node_id
@@ -244,9 +267,9 @@ class RaftNode:
             last_log_index = self._last_log_index()
             last_log_term = self._last_log_term()
             self._election_deadline = self._new_election_deadline()
-            peer_ids = list(self._get_peer_ids())
+            peer_ids = self._membership.peer_ids(self.node_id)
 
-        votes = 1  # vote for self
+        votes = {self.node_id}
         for peer_id in peer_ids:
             try:
                 resp_term, granted = self._rpc.request_vote(peer_id, term, self.node_id, last_log_index, last_log_term)
@@ -259,11 +282,10 @@ class RaftNode:
                 if self.role != Role.CANDIDATE or self.current_term != term:
                     return  # state changed mid-election
             if granted:
-                votes += 1
+                votes.add(peer_id)
 
-        majority = (len(peer_ids) + 1) // 2 + 1
         with self._lock:
-            if self.role == Role.CANDIDATE and self.current_term == term and votes >= majority:
+            if self.role == Role.CANDIDATE and self.current_term == term and self._membership.has_quorum(votes):
                 self._become_leader(peer_ids)
 
     def _become_leader(self, peer_ids: List[str]) -> None:
@@ -284,6 +306,10 @@ class RaftNode:
 
     def handle_request_vote(self, term: int, candidate_id: str, last_log_index: int, last_log_term: int) -> Tuple[int, bool]:
         with self._lock:
+            if self._membership_enforced and (
+                self.node_id not in self._membership.all_voters or candidate_id not in self._membership.all_voters
+            ):
+                return self.current_term, False
             if term < self.current_term:
                 return self.current_term, False
             if term > self.current_term:
@@ -355,7 +381,13 @@ class RaftNode:
             return self.current_term, True
 
     def handle_install_snapshot(
-        self, term: int, leader_id: str, last_included_index: int, last_included_term: int, snapshot_data: dict,
+        self,
+        term: int,
+        leader_id: str,
+        last_included_index: int,
+        last_included_term: int,
+        snapshot_data: dict,
+        membership: Optional[dict] = None,
     ) -> Tuple[int, bool]:
         """Catches up a follower that's too far behind for normal
         AppendEntries because the leader already compacted past what the
@@ -379,8 +411,16 @@ class RaftNode:
                 self.commit_index = last_included_index
 
             if self._storage:
-                self._storage.save_snapshot(last_included_index, last_included_term, snapshot_data)
+                self._storage.save_snapshot(
+                    last_included_index,
+                    last_included_term,
+                    snapshot_data,
+                    membership=membership or self._membership.to_payload(),
+                )
                 self._persist()
+
+            if membership is not None:
+                self._membership = VoterConfiguration.from_payload(membership)
 
             if self.on_snapshot_restore:
                 self.on_snapshot_restore(snapshot_data)
@@ -390,8 +430,10 @@ class RaftNode:
     def _apply_committed(self, new_commit_index: int) -> None:
         for idx in range(self.commit_index + 1, new_commit_index + 1):
             entry = self._log_entry_at(idx)
-            if entry is not None and self.on_commit:
-                self.on_commit(entry)
+            if entry is not None:
+                self._apply_membership_command(entry.command)
+                if self.on_commit:
+                    self.on_commit(entry)
         self.commit_index = new_commit_index
         self._persist()
 
@@ -416,6 +458,100 @@ class RaftNode:
 
     # -- leader operations -----------------------------------------------------
 
+    def _apply_membership_command(self, command: dict) -> None:
+        """Apply only committed, self-consistent joint-consensus transitions."""
+        if not isinstance(command, dict):
+            return
+        kind = command.get("kind")
+        if kind == "raft_membership_joint":
+            try:
+                old_voters = frozenset(command["old_voters"])
+                new_voters = frozenset(command["new_voters"])
+                if old_voters != self._membership.voters:
+                    return
+                self._membership = VoterConfiguration(old_voters, new_voters)
+                self._membership_enforced = True
+                self._pending_joint_voters = None
+            except (KeyError, TypeError, MembershipError):
+                return
+        elif kind == "raft_membership_finalize":
+            try:
+                old_voters = frozenset(command["old_voters"])
+                new_voters = frozenset(command["new_voters"])
+                if self._membership.voters != old_voters or self._membership.joint_voters != new_voters:
+                    return
+                self._membership = VoterConfiguration(new_voters)
+                self._membership_enforced = True
+                self._retired_peers.update(old_voters - new_voters)
+                self._learners.difference_update(new_voters)
+                self._pending_joint_voters = None
+            except (KeyError, TypeError, MembershipError):
+                return
+
+    def propose_membership_change(self, new_voter_ids: List[str], timeout_seconds: float = 5.0) -> bool:
+        """Replace a cell voter set through committed joint consensus.
+
+        Callers must verify that every new peer is already trusted over mTLS;
+        this method changes only consensus membership and never grants trust.
+        """
+        try:
+            new_voters = frozenset(new_voter_ids)
+            candidate = VoterConfiguration(new_voters)
+        except (TypeError, MembershipError):
+            return False
+        with self._lock:
+            if self.role != Role.LEADER or self._membership.joint_voters is not None or self._pending_joint_voters is not None:
+                return False
+            if candidate.voters == self._membership.voters:
+                return False
+            old_voters = self._membership.voters
+            self._pending_joint_voters = candidate.voters
+        joint = {
+            "kind": "raft_membership_joint",
+            "old_voters": sorted(old_voters),
+            "new_voters": sorted(candidate.voters),
+        }
+        if not self.propose_and_wait(joint, timeout_seconds=timeout_seconds):
+            return False
+        finalize = {
+            "kind": "raft_membership_finalize",
+            "old_voters": sorted(old_voters),
+            "new_voters": sorted(candidate.voters),
+        }
+        return self.propose_and_wait(finalize, timeout_seconds=timeout_seconds)
+
+    def install_membership_snapshot(self, membership: dict) -> bool:
+        """Seed a fresh learner from an authenticated cluster snapshot.
+
+        This never grants transport trust and is rejected after the node has
+        committed Raft history, preventing a later snapshot from rewriting a
+        live cell's voter configuration.
+        """
+        try:
+            configured = VoterConfiguration.from_payload(membership)
+        except MembershipError:
+            return False
+        with self._lock:
+            if self.commit_index >= 0 or self.log or self._membership_enforced:
+                return False
+            self._membership = configured
+            self._membership_enforced = True
+            return True
+
+    def register_learner(self, peer_id: str) -> bool:
+        """Add a trusted non-voter to replication without giving it quorum rights."""
+        if not isinstance(peer_id, str) or not peer_id or peer_id == self.node_id:
+            return False
+        with self._lock:
+            if peer_id in self._membership.all_voters:
+                return False
+            self._learners.add(peer_id)
+            return True
+
+    def is_learner(self, peer_id: str) -> bool:
+        with self._lock:
+            return peer_id in self._learners
+
     def _send_heartbeats(self) -> None:
         with self._lock:
             if self.role != Role.LEADER:
@@ -426,7 +562,13 @@ class RaftNode:
             snapshot_term = self._snapshot_last_included_term
             snapshot_data = self.get_snapshot_data() if self.get_snapshot_data else {}
             commit_index = self.commit_index
-            peer_ids = list(self._get_peer_ids())
+            peer_ids = self._membership.peer_ids(self.node_id)
+            if self._pending_joint_voters is not None:
+                peer_ids = sorted(set(peer_ids) | (self._pending_joint_voters - {self.node_id}))
+            peer_ids = sorted(set(peer_ids) | self._retired_peers | self._learners)
+            membership_payload = self._membership.to_payload()
+            retired_before_round = set(self._retired_peers)
+            retired_acknowledged: set[str] = set()
 
         for peer_id in peer_ids:
             next_idx = self._next_index.get(peer_id, (log_snapshot[-1].index if log_snapshot else snapshot_base) + 1)
@@ -435,9 +577,16 @@ class RaftNode:
                 # The peer needs entries we've already compacted away —
                 # send a snapshot instead of (impossible) log entries.
                 try:
-                    resp_term, success = self._rpc.install_snapshot(
-                        peer_id, term, self.node_id, snapshot_base, snapshot_term, snapshot_data,
-                    )
+                    try:
+                        resp_term, success = self._rpc.install_snapshot(
+                            peer_id, term, self.node_id, snapshot_base, snapshot_term, snapshot_data, membership_payload,
+                        )
+                    except TypeError:
+                        # Backward-compatible adapter path for a pre-membership
+                        # test or transport implementation.
+                        resp_term, success = self._rpc.install_snapshot(
+                            peer_id, term, self.node_id, snapshot_base, snapshot_term, snapshot_data,
+                        )
                 except Exception:
                     if self.on_peer_liveness:
                         self.on_peer_liveness(peer_id, False)
@@ -451,6 +600,8 @@ class RaftNode:
                     if success:
                         if self.on_peer_liveness:
                             self.on_peer_liveness(peer_id, True)
+                        if peer_id in retired_before_round:
+                            retired_acknowledged.add(peer_id)
                         self._match_index[peer_id] = snapshot_base
                         self._next_index[peer_id] = snapshot_base + 1
                     elif self.on_peer_liveness:
@@ -485,6 +636,8 @@ class RaftNode:
                 if success:
                     if self.on_peer_liveness:
                         self.on_peer_liveness(peer_id, True)
+                    if peer_id in retired_before_round:
+                        retired_acknowledged.add(peer_id)
                     self._match_index[peer_id] = next_idx + len(entries_to_send) - 1
                     self._next_index[peer_id] = self._match_index[peer_id] + 1
                 else:
@@ -501,6 +654,7 @@ class RaftNode:
             # committed with no peers at all.
             if self.role == Role.LEADER:
                 self._maybe_advance_commit_index(peer_ids)
+                self._retired_peers.difference_update(retired_acknowledged)
 
     def _maybe_advance_commit_index(self, peer_ids: List[str]) -> None:
         last_idx = self._last_log_index()
@@ -508,9 +662,8 @@ class RaftNode:
             entry = self._log_entry_at(idx)
             if entry is None or entry.term != self.current_term:
                 continue  # Raft safety: only directly commit entries from our own term
-            replicated = 1 + sum(1 for p in peer_ids if self._match_index.get(p, -1) >= idx)
-            majority = (len(peer_ids) + 1) // 2 + 1
-            if replicated >= majority:
+            acknowledged = {self.node_id} | {peer_id for peer_id in peer_ids if self._match_index.get(peer_id, -1) >= idx}
+            if self._membership.has_quorum(acknowledged):
                 self._apply_committed(idx)
                 break
 
@@ -558,4 +711,12 @@ class RaftNode:
                 "log_length": len(self.log),
                 "commit_index": self.commit_index,
                 "snapshot_last_included_index": self._snapshot_last_included_index,
+                "voters": sorted(self._membership.voters),
+                "joint_voters": sorted(self._membership.joint_voters) if self._membership.joint_voters else None,
+                "learners": sorted(self._learners),
             }
+
+    def membership_snapshot(self) -> dict:
+        """Return non-secret voter metadata for an already mTLS-authenticated learner."""
+        with self._lock:
+            return self._membership.to_payload()

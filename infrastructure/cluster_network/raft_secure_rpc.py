@@ -60,7 +60,16 @@ class SecureRaftRpcClient:
             raise ConnectionError("empty Raft append response")
         return int(response["term"]), bool(response["success"])
 
-    def install_snapshot(self, peer_id: str, term: int, leader_id: str, last_included_index: int, last_included_term: int, snapshot_data: dict):
+    def install_snapshot(
+        self,
+        peer_id: str,
+        term: int,
+        leader_id: str,
+        last_included_index: int,
+        last_included_term: int,
+        snapshot_data: dict,
+        membership: dict | None = None,
+    ):
         peer = self._peer(peer_id)
         response = self._client().install_snapshot(
             peer["host"], peer["port"],
@@ -70,6 +79,7 @@ class SecureRaftRpcClient:
                 "last_included_index": last_included_index,
                 "last_included_term": last_included_term,
                 "snapshot_data": snapshot_data,
+                **({"membership": membership} if membership is not None else {}),
             },
             timeout=max(self._timeout_seconds, 5.0),
         )

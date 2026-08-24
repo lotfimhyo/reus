@@ -182,11 +182,7 @@ class HostingAuthorizationStore:
 
     def load(self, authorization_id: str, *, now: float | None = None) -> PurchaseAuthorization:
         now = time.time() if now is None else now
-        try:
-            record = self._records()[authorization_id]
-        except KeyError as exc:
-            raise HostingGovernanceError("purchase authorization is not present in durable storage") from exc
-        authorization = PurchaseAuthorization(**record)
+        authorization = self.load_raw(authorization_id)
         if authorization.cancelled_at is not None:
             raise HostingGovernanceError("purchase authorization is cancelled")
         if authorization.expired_at is not None:
@@ -196,6 +192,14 @@ class HostingAuthorizationStore:
         if authorization.consumed_at is not None:
             raise HostingGovernanceError("purchase authorization is already consumed")
         return authorization
+
+    def load_raw(self, authorization_id: str) -> PurchaseAuthorization:
+        """Load durable authorization state without applying lifecycle checks."""
+        try:
+            record = self._records()[authorization_id]
+        except KeyError as exc:
+            raise HostingGovernanceError("purchase authorization is not present in durable storage") from exc
+        return PurchaseAuthorization(**record)
 
     def _records(self) -> dict[str, dict[str, object]]:
         if not self._path.exists():
@@ -215,6 +219,7 @@ class HostingPurchaseGate:
     def __init__(self, *, audit: HostingGovernanceAudit | None = None, store: HostingAuthorizationStore | None = None) -> None:
         self._audit = audit
         self._store = store
+        self._current: dict[str, PurchaseAuthorization] = {}
 
     def request(self, offer: HostingOffer, *, ttl_seconds: float = 300.0, now: float | None = None) -> PurchaseAuthorization:
         now = time.time() if now is None else now
@@ -236,6 +241,7 @@ class HostingPurchaseGate:
 
     def approve(self, authorization: PurchaseAuthorization, offer: HostingOffer, *, now: float | None = None) -> PurchaseAuthorization:
         now = time.time() if now is None else now
+        authorization = self._latest(authorization)
         self._assert_current(authorization, offer, now)
         if authorization.approved:
             raise HostingGovernanceError("purchase authorization is already approved")
@@ -246,6 +252,7 @@ class HostingPurchaseGate:
 
     def consume(self, authorization: PurchaseAuthorization, offer: HostingOffer, *, now: float | None = None) -> PurchaseAuthorization:
         now = time.time() if now is None else now
+        authorization = self._latest(authorization)
         self._assert_current(authorization, offer, now)
         if not authorization.approved:
             raise HostingGovernanceError("purchase authorization requires explicit approval")
@@ -258,6 +265,7 @@ class HostingPurchaseGate:
 
     def expire(self, authorization: PurchaseAuthorization, *, now: float | None = None) -> PurchaseAuthorization:
         now = time.time() if now is None else now
+        authorization = self._latest(authorization)
         if authorization.consumed_at is not None:
             raise HostingGovernanceError("consumed purchase authorization cannot expire")
         if authorization.cancelled_at is not None or authorization.expired_at is not None:
@@ -271,6 +279,7 @@ class HostingPurchaseGate:
 
     def cancel(self, authorization: PurchaseAuthorization, *, now: float | None = None) -> PurchaseAuthorization:
         now = time.time() if now is None else now
+        authorization = self._latest(authorization)
         if authorization.consumed_at is not None:
             raise HostingGovernanceError("consumed purchase authorization cannot be cancelled")
         if authorization.cancelled_at is not None or authorization.expired_at is not None:
@@ -294,8 +303,14 @@ class HostingPurchaseGate:
             )
 
     def _persist(self, authorization: PurchaseAuthorization) -> None:
+        self._current[authorization.authorization_id] = authorization
         if self._store is not None:
             self._store.save(authorization)
+
+    def _latest(self, authorization: PurchaseAuthorization) -> PurchaseAuthorization:
+        if self._store is not None:
+            return self._store.load_raw(authorization.authorization_id)
+        return self._current.get(authorization.authorization_id, authorization)
 
     @staticmethod
     def _assert_current(authorization: PurchaseAuthorization, offer: HostingOffer, now: float) -> None:

@@ -295,6 +295,7 @@ def join_cluster(composed: ComposedNode, seed_bootstrap_url: str, max_wait_secon
         secure_client_factory=composed.secure_client_factory,
         bootstrap_client=BootstrapClient(),
         max_wait_seconds=max_wait_seconds,
+        on_raft_membership=composed.raft.install_membership_snapshot,
     )
     result = join_client.join(seed_bootstrap_url)
     composed.secure_server.refresh_trust(composed.trust_bundle_path)

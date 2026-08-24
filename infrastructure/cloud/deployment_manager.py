@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 from infrastructure.cloud.provider_base import CloudConfig, CloudProvider, InstanceInfo
+from infrastructure.hosting_governance import HostingOffer, HostingPurchaseGate, PurchaseAuthorization
 
 
 class CloudLimitExceeded(RuntimeError):
@@ -41,9 +42,10 @@ class DeploymentProposal:
 
 
 class CloudDeploymentManager:
-    def __init__(self, provider: CloudProvider):
+    def __init__(self, provider: CloudProvider, *, purchase_gate: HostingPurchaseGate | None = None):
         self._provider = provider
         self._config: Optional[CloudConfig] = None
+        self._purchase_gate = purchase_gate
 
     def configure(self, config: CloudConfig) -> None:
         self._config = config
@@ -96,13 +98,41 @@ class CloudDeploymentManager:
             current_monthly_spend_usd=current_spend,
         )
 
-    def execute_new_instance(self, name: str) -> InstanceInfo:
-        """Only ever call this after a human has approved the matching
-        DeploymentProposal via the Telegram gate — this method itself does
-        not re-check approval, by design: approval-checking lives in
-        cloud/telegram_commands.py, provisioning logic lives here."""
+    def purchase_offer(self, proposal: DeploymentProposal) -> HostingOffer:
+        """Produce the immutable price/configuration contract for one VM."""
         if not self._config:
             raise CloudLimitExceeded("cloud provider not configured")
+        return HostingOffer(
+            offer_id=f"{proposal.provider}:{proposal.region}:{proposal.size}:{proposal.name}",
+            provider=proposal.provider,
+            plan=proposal.size,
+            region=proposal.region,
+            monthly_price_minor=round(proposal.estimated_monthly_cost_usd * 100),
+            currency="USD",
+            billing_period="monthly",
+            is_free=False,
+            data_boundary=f"provider region {proposal.region}",
+            compute_summary=f"one {proposal.size} node named {proposal.name}",
+        )
+
+    def execute_new_instance(
+        self,
+        name: str,
+        *,
+        authorization: PurchaseAuthorization | None = None,
+        offer: HostingOffer | None = None,
+    ) -> InstanceInfo:
+        """Create exactly one approved resource and consume its authorization.
+
+        A provider adapter cannot be reached unless the authorization matches
+        the full reviewed offer and has been approved. Consumption occurs
+        immediately before creation, so a network retry cannot charge twice.
+        """
+        if not self._config:
+            raise CloudLimitExceeded("cloud provider not configured")
+        if self._purchase_gate is None or authorization is None or offer is None:
+            raise CloudLimitExceeded("cloud purchase requires a configured one-time authorization")
+        self._purchase_gate.consume(authorization, offer)
         return self._provider.create_instance(name, self._config)
 
     def list_instances(self) -> List[InstanceInfo]:

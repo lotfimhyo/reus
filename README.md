@@ -40,14 +40,14 @@ Ollama and compatible API model routing, governed capability evolution,
 durable local memory, Telegram administration, and a modular FastAPI service.
 Its distributed core includes mTLS node identity, controlled membership,
 Raft-led consensus, replicated leases for task coordination, peer-liveness
-handling, and metadata-only federation primitives. Hosting governance can
-prepare a one-time, expiring authorization and present offer details through
-Telegram; it does **not** store card data, purchase hosting, create resources,
-or control a developer device.
+handling, learner standbys, and metadata-only federation primitives. Hosting
+governance can prepare a one-time, expiring authorization and present exact
+offer details through Telegram; it does **not** store card data, purchase
+hosting, create resources, or control a developer device.
 
 For a concise technical map, read [Architecture](docs/ARCHITECTURE.md). For the
 current boundaries and public-claim requirements, read
-[Release checklist](docs/RELEASE_CHECKLIST.md) and
+[Cell recovery](docs/CELL_RECOVERY.md), [Release checklist](docs/RELEASE_CHECKLIST.md), and
 [Public claims evidence](docs/public_claims_evidence.md).
 
 ## Quick start
@@ -70,7 +70,7 @@ Run the local quality gate with:
 bash scripts/run_local_quality.sh
 ```
 
-The most recently recorded local gate result was **505 passing tests and five
+The most recently recorded local gate result was **518 passing tests and five
 passing subtests. It intentionally excludes only integration checks requiring
 separately provisioned PostgreSQL, Redis, or Alembic services.
 

@@ -58,6 +58,7 @@ class MTLSJoinClient:
         secure_client_factory,
         bootstrap_client: BootstrapClient | None = None,
         max_wait_seconds: float = 300.0,
+        on_raft_membership=None,
     ):
         """`own_identity_payload_fn()` returns this node's own bootstrap
         payload dict (see bootstrap_server.py) — the same callable a local
@@ -76,6 +77,7 @@ class MTLSJoinClient:
         self.secure_client_factory = secure_client_factory
         self.bootstrap = bootstrap_client or BootstrapClient()
         self.max_wait_seconds = max_wait_seconds
+        self.on_raft_membership = on_raft_membership
 
     def join(self, peer_bootstrap_base_url: str) -> JoinResult:
         try:
@@ -118,6 +120,7 @@ class MTLSJoinClient:
             self.capabilities,
             self.memory,
             self.peer_directory,
+            on_raft_membership=self.on_raft_membership,
         )
 
         return JoinResult(

@@ -19,6 +19,7 @@ from __future__ import annotations
 import shlex
 import time
 import uuid
+import os
 from typing import Dict, Optional, Type
 
 from application.telegram_service import TelegramService
@@ -27,6 +28,7 @@ from infrastructure.cloud.digitalocean_provider import DigitalOceanProvider
 from infrastructure.cloud.node_cloud_init import build_node_cloud_init_script
 from infrastructure.cloud.provider_base import CloudConfig, CloudProvider
 from infrastructure.event_bus import Event, EventBus
+from infrastructure.hosting_governance import HostingGovernanceError, HostingPurchaseGate
 from infrastructure.node_roles import NODE_ROLES
 
 _PROVIDERS: Dict[str, Type[CloudProvider]] = {
@@ -34,11 +36,10 @@ _PROVIDERS: Dict[str, Type[CloudProvider]] = {
 }
 
 _CONFIGURE_USAGE = (
-    "Usage: /configure_cloud provider=digitalocean token=<token> region=nyc3 "
+    "Usage: /configure_cloud provider=digitalocean region=nyc3 "
     "size=s-1vcpu-1gb max_instances=2 budget_cap=20 "
     'source_fetch_cmd="git clone https://.../reus.git /opt/reus"\n'
-    "(source_fetch_cmd is required: it defines how Reus source reaches an empty cloud server. "
-    "Quote the value when it contains spaces.)"
+    "(source_fetch_cmd is required; configure the provider token only through the local secret manager.)"
 )
 
 
@@ -50,6 +51,8 @@ class CloudTelegramCommands:
         event_bus: EventBus | None = None,
         seed_bootstrap_url_provider=None,
         manager_holder=None,
+        purchase_gate: HostingPurchaseGate | None = None,
+        token_resolver=None,
     ):
         """`provider_factory(provider_name) -> CloudProvider` is replaced only
         in tests. `seed_bootstrap_url_provider()` optionally returns an existing
@@ -65,11 +68,19 @@ class CloudTelegramCommands:
         self._source_fetch_cmd: Optional[str] = None
         self._seed_bootstrap_url_provider = seed_bootstrap_url_provider
         self._manager_holder = manager_holder
+        self._purchase_gate = purchase_gate or HostingPurchaseGate()
+        self._token_resolver = token_resolver or self._environment_token
 
         service.register_admin_command("/configure_cloud", self._cmd_configure)
         service.register_admin_command("/deploy_node", self._cmd_deploy)
         service.register_admin_command("/list_nodes", self._cmd_list)
         service.register_admin_command("/destroy_node", self._cmd_destroy)
+
+    @staticmethod
+    def _environment_token(provider_name: str) -> str | None:
+        if provider_name == "digitalocean":
+            return os.getenv("REUS_DIGITALOCEAN_TOKEN")
+        return None
 
     def _publish(self, name: str, payload: dict) -> None:
         if self._bus is not None:
@@ -86,9 +97,12 @@ class CloudTelegramCommands:
                 self._send(chat_id, f"Unknown provider '{provider_name}'. Supported: {sorted(_PROVIDERS)}")
                 return
             source_fetch_cmd = parsed["source_fetch_cmd"]
+            token = self._token_resolver(provider_name)
+            if not token:
+                raise KeyError("provider token is not configured")
             config = CloudConfig(
                 provider=provider_name,
-                api_token=parsed["token"],
+                api_token=token,
                 region=parsed["region"],
                 size=parsed["size"],
                 max_instances=int(parsed["max_instances"]),
@@ -98,7 +112,9 @@ class CloudTelegramCommands:
             self._send(chat_id, _CONFIGURE_USAGE)
             return
 
-        self._manager = CloudDeploymentManager(self._provider_factory(provider_name))
+        self._manager = CloudDeploymentManager(
+            self._provider_factory(provider_name), purchase_gate=self._purchase_gate
+        )
         if self._manager_holder is not None:
             self._manager_holder.manager = self._manager
         self._manager.configure(config)
@@ -116,8 +132,7 @@ class CloudTelegramCommands:
             chat_id,
             f"Cloud configured: {provider_name}, region={config.region}, size={config.size}, "
             f"maximum {config.max_instances} nodes, budget cap ${config.budget_cap_usd_per_month:.2f}/month.\n"
-            f"Note: the API token was sent in this chat. Treat it as sensitive and revoke or rotate it "
-            f"from the {provider_name} dashboard at any time.",
+            "The provider credential remains outside Telegram and is not shown in Reus messages or audit records.",
         )
 
     def _cmd_deploy(self, chat_id: str, args: str) -> None:
@@ -141,6 +156,8 @@ class CloudTelegramCommands:
             self._publish("cloud.deploy_rejected", {"name": name, "role_id": role_id, "reason": str(e)})
             self._send(chat_id, f"Deployment rejected: {e}")
             return
+        offer = self._manager.purchase_offer(proposal)
+        authorization = self._purchase_gate.request(offer)
 
         if not self._source_fetch_cmd:
             self._send(chat_id, "source_fetch_cmd is not configured. Run /configure_cloud again and include it.")
@@ -160,15 +177,34 @@ class CloudTelegramCommands:
         self._service.request_approval(
             chat_id,
             approval_id,
-            f"{proposal.describe()}\nRole: {role_id}{seed_note}",
-            on_approve=lambda: self._execute_deploy(chat_id, name, role_id, cloud_init_script),
-            on_reject=lambda: self._send(chat_id, f"Deployment of '{name}' was cancelled."),
+            f"{proposal.describe()}\nRole: {role_id}{seed_note}\n"
+            f"This confirmation authorizes one creation only: {offer.provider}, {offer.plan}, "
+            f"{offer.region}, ${offer.monthly_price_minor / 100:.2f}/{offer.billing_period}.",
+            on_approve=lambda: self._approve_and_execute_deploy(
+                chat_id, name, role_id, cloud_init_script, authorization, offer
+            ),
+            on_reject=lambda: self._cancel_deploy(chat_id, name, authorization),
         )
 
-    def _execute_deploy(self, chat_id: str, name: str, role_id: str, cloud_init_script: str) -> None:
+    def _cancel_deploy(self, chat_id: str, name: str, authorization) -> None:
+        try:
+            self._purchase_gate.cancel(authorization)
+        except HostingGovernanceError:
+            pass
+        self._send(chat_id, f"Deployment of '{name}' was cancelled.")
+
+    def _approve_and_execute_deploy(self, chat_id: str, name: str, role_id: str, cloud_init_script: str, authorization, offer) -> None:
+        try:
+            approved = self._purchase_gate.approve(authorization, offer)
+        except HostingGovernanceError as exc:
+            self._send(chat_id, f"Deployment approval could not be used: {exc}")
+            return
+        self._execute_deploy(chat_id, name, role_id, cloud_init_script, approved, offer)
+
+    def _execute_deploy(self, chat_id: str, name: str, role_id: str, cloud_init_script: str, authorization, offer) -> None:
         try:
             self._manager.set_user_data(cloud_init_script)
-            instance = self._manager.execute_new_instance(name)
+            instance = self._manager.execute_new_instance(name, authorization=authorization, offer=offer)
             self._publish(
                 "cloud.instance_deployed",
                 {

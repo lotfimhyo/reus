@@ -82,14 +82,19 @@ def test_admin_command_denial_is_published(bus, captured):
 def test_cloud_configured_event_never_leaks_the_token(bus, captured):
     service = TelegramService(_FakeLinkRepo(), _FakeTokenService(), _FakeOrchestrator(), bus,
                                admin_chat_ids=frozenset({"admin1"}))
-    CloudTelegramCommands(service, provider_factory=lambda name: object(), event_bus=bus)
+    CloudTelegramCommands(
+        service,
+        provider_factory=lambda name: object(),
+        event_bus=bus,
+        token_resolver=lambda _provider: "test-secret-token",
+    )
 
-    service.handle_incoming_message("admin1", "/configure_cloud provider=digitalocean token=SECRET123 "
+    service.handle_incoming_message("admin1", "/configure_cloud provider=digitalocean "
                                                "region=nyc3 size=s max_instances=1 budget_cap=5 "
                                                'source_fetch_cmd="git clone https://example.invalid/reus.git /opt/reus"')
 
     configured_events = [e for e in captured if e.name == "cloud.configured"]
     assert configured_events
     for e in configured_events:
-        assert "SECRET123" not in str(e.payload)
+        assert "test-secret-token" not in str(e.payload)
         assert "token" not in e.payload

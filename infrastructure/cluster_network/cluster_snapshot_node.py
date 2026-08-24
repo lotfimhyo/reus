@@ -77,6 +77,7 @@ def fetch_and_apply_snapshot(
     memory: MemoryLayer,
     peer_directory: PeerDirectory,
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+    on_raft_membership=None,
 ) -> tuple[int, int]:
     """Client-side counterpart, called once after a peer has been added to
     TrustStore (mutual trust established). Returns
@@ -92,4 +93,7 @@ def fetch_and_apply_snapshot(
         peer_directory.register_capability_origin(descriptor.capability_id, peer_node_id)
 
     facts_ingested = apply_semantic_snapshot(memory, response.get("semantic_facts", []))
+    membership = response.get("raft_membership")
+    if on_raft_membership is not None and isinstance(membership, dict):
+        on_raft_membership(membership)
     return (len(ingested_capabilities), facts_ingested)

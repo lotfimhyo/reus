@@ -63,6 +63,22 @@ def test_send_message_raises_on_api_error():
         client.send_message("999", "hello")
 
 
+def test_get_me_returns_authenticated_bot_identity_without_sending_a_message():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["url"] = str(request.url)
+        captured["json"] = json_module.loads(request.content)
+        return httpx.Response(200, json={"ok": True, "result": {"id": 1, "is_bot": True, "username": "reus_test_bot"}})
+
+    client = _client_with_handler(handler)
+    identity = client.get_me()
+
+    assert "getMe" in captured["url"]
+    assert captured["json"] == {}
+    assert identity == {"id": 1, "is_bot": True, "username": "reus_test_bot"}
+
+
 def test_get_updates_returns_parsed_results():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
@@ -87,6 +103,7 @@ def test_get_updates_sends_offset_and_timeout():
 
     def handler(request: httpx.Request) -> httpx.Response:
         captured["json"] = json_module.loads(request.content)
+        captured["timeout"] = request.extensions["timeout"]
         return httpx.Response(200, json={"ok": True, "result": []})
 
     client = _client_with_handler(handler)
@@ -94,3 +111,4 @@ def test_get_updates_sends_offset_and_timeout():
 
     assert captured["json"]["offset"] == 42
     assert captured["json"]["timeout"] == 10
+    assert captured["timeout"]["read"] > captured["json"]["timeout"]
