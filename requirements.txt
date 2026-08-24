@@ -3,7 +3,7 @@
 # Organization: Reulink
 # Contact: Contact@reulink.app
 
-alembic>=1.13
+alembic>=1.19.1
 anthropic>=0.40
 boto3>=1.34
 cryptography>=42.0
