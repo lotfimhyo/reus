@@ -29,7 +29,7 @@ jobs:
           bash scripts/package_release.sh "Reus_core_${{ github.ref_name }}.zip"
           sha256sum "Reus_core_${{ github.ref_name }}.zip" > "Reus_core_${{ github.ref_name }}.zip.sha256"
       - name: Publish source archive and checksum
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             Reus_core_${{ github.ref_name }}.zip
